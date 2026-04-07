@@ -1,8 +1,8 @@
 # CCMAS Python CLI
 
-Multi-Agent System Python CLI - 学习参考项目。
+多智能体系统 Python CLI - 学习参考项目。
 
-## 项目简介
+## 项目概述
 
 CCMAS (Multi-Agent System) Python CLI 是对多智能体系统核心逻辑的 Python 实现。
 
@@ -12,7 +12,7 @@ CCMAS (Multi-Agent System) Python CLI 是对多智能体系统核心逻辑的 Py
 
 ## 启动界面
 
-!\[CCMAS 启动界面]\(G:\Projects\ClaudeCode\ccmas-python-cli\docs\ccmas-startup.png)
+![CCMAS 启动界面](src/asset/ccmas-startup.png)
 
 ### 核心功能
 
@@ -45,7 +45,7 @@ ccmas --setup
 ccmas
 ```
 
-### 基本使用
+### 基本用法
 
 ```bash
 ccmas
@@ -63,10 +63,10 @@ ccmas --api-base https://api.minimax.chat/v1 --api-key YOUR_KEY --model MiniMax-
 | --reset               | 重置配置         |
 | --workspace, -w       | 工作目录         |
 | --model, -m           | 模型名称         |
-| --api-base, -b        | API 端点       |
-| --api-key, -k         | API 密钥       |
-| --ollama              | 使用 Ollama 后端 |
-| --vllm                | 使用 vLLM 后端   |
+| --api-base, -b        | API 端点        |
+| --api-key, -k         | API 密钥        |
+| --ollama              | 使用 Ollama   |
+| --vllm                | 使用 vLLM     |
 | --temperature, -t     | 采样温度         |
 | --permission-mode, -p | 权限模式         |
 | --continue            | 继续上次会话       |
@@ -89,7 +89,7 @@ ccmas skill install /path/to/local/skill
 # 列出已安装的 skills
 ccmas skill list
 
-# 查看 skill 详情
+# 显示 skill 信息
 ccmas skill info <name>
 
 # 更新 skill
@@ -101,20 +101,20 @@ ccmas skill uninstall <name>
 
 Skills 安装到 `~/.ccmas/skills/<skill-name>/SKILL.md`。
 
-## 核心特性详解
+## 核心功能
 
 ### AutoCompact 自动压缩
 
-当对话上下文接近 token 限制时，CCMAS 会自动：
+当对话上下文接近 token 限制时，CCMAS 会：
 
 1. 调用 LLM 生成对话摘要
-2. 保留最近的消息和关键上下文
+2. 保留最近消息和关键上下文
 3. 插入压缩边界标记
 4. 继续对话
 
 ### Token Budget 预算控制
 
-在任务描述前添加 `+500k`（或 `use 2M tokens`）来指定预算：
+在任务描述前添加 `+500k`（或 `use 2M tokens`）：
 
 ```bash
 ccmas "+500k 重构整个用户认证模块"
@@ -123,12 +123,12 @@ ccmas "+500k 重构整个用户认证模块"
 系统会：
 
 - 追踪 token 使用量
-- 在预算耗尽前发送继续消息
-- 检测边际收益递减并正确停止
+- 预算耗尽前发送继续消息
+- 检测收益递减并正确停止
 
 ### Memory 系统
 
-CCMAS 提供持久化的 Memory 系统：
+CCMAS 提供持久化 Memory 系统：
 
 ```
 ~/.ccmas/
@@ -140,21 +140,21 @@ CCMAS 提供持久化的 Memory 系统：
 └── sessions/            # 会话历史
 ```
 
-**保存记忆**：AI 会自动将重要信息保存到 Memory 文件：
+**保存 Memory**：AI 自动将重要信息保存到 Memory 文件：
 
-1. 写文件到 `~/.ccmas/memory/xxx.md`
+1. 写入 `~/.ccmas/memory/xxx.md`
 2. 更新 `MEMORY.md` 索引
 
-**记忆类型**：
+**Memory 类型**：
 
 - `user` - 用户角色、偏好、知识
 - `feedback` - 用户反馈和指导
 - `project` - 项目特定信息
-- `reference` - 外部系统引用
+- `reference` - 外部系统参考
 
 ### Skill 系统
 
-Skills 是可重用的指令集，兼容 Claude Code 的 skill 格式。
+Skills 是可复用的指令集，兼容 Claude Code 的 skill 格式。
 
 **SKILL.md 格式**：
 
@@ -174,10 +174,10 @@ context: fork
 ## Instructions
 1. 获取变更
 2. 审查 bug
-3. 检查代码风格
+3. 检查风格
 ```
 
-使用 `/code-review` 调用此 skill。
+使用 `/code-review` 调用 skill。
 
 ### Tmux Teammate
 
@@ -194,7 +194,7 @@ result = await worker.recv_response()
 
 ### CLAUDE.md 多级发现
 
-在项目目录树中任意位置创建 `CLAUDE.md`：
+在项目目录树的任意位置创建 `CLAUDE.md`：
 
 ```
 project/
@@ -205,18 +205,18 @@ project/
 │       └── CLAUDE.md      # components 目录级
 ```
 
-系统会按深度从浅到深加载所有文件。
+系统从浅到深按深度加载所有文件。
 
 ## 权限模式
 
-| 模式                | 说明       |
-| ----------------- | -------- |
-| default           | 标准权限处理   |
-| acceptEdits       | 自动接受编辑   |
-| bypassPermissions | 跳过权限检查   |
-| bubble            | 权限冒泡到父代理 |
-| plan              | 规划模式     |
-| auto              | 自动模式     |
+| 模式              | 说明           |
+| ---------------- | ------------ |
+| default          | 标准权限处理       |
+| acceptEdits      | 自动接受编辑       |
+| bypassPermissions | 跳过权限检查      |
+| bubble           | 权限冒泡到父代理    |
+| plan             | 规划模式         |
+| auto             | 自动模式         |
 
 ## 项目结构
 
@@ -238,7 +238,7 @@ ccmas-python-cli/
 │   │   ├── agent_context.py
 │   │   ├── teammate_context.py
 │   │   └── subagent_context.py
-│   ├── coordinator/        # Coordinator 模式
+│   ├── coordinator/        # 协调模式
 │   ├── hooks/              # Hooks 系统
 │   │   ├── manager.py      # Hook 管理器
 │   │   └── integration.py  # Hook 集成
@@ -248,40 +248,40 @@ ccmas-python-cli/
 │   │   ├── ollama.py       # Ollama
 │   │   └── vllm.py         # vLLM
 │   ├── memory/             # Memory 系统
-│   │   ├── loader.py       # 记忆加载
+│   │   ├── loader.py       # Memory 加载器
 │   │   ├── state_manager.py # 状态恢复
-│   │   ├── template.py     # 记忆模板
+│   │   ├── template.py     # Memory 模板
 │   │   ├── session.py      # 会话管理
 │   │   ├── summarizer.py   # 摘要生成
 │   │   └── types.py        # 类型定义
 │   ├── permission/         # 权限系统
 │   │   ├── checker.py      # 权限检查
-│   │   ├── mode.py        # 权限模式
-│   │   └── bubble.py      # 权限冒泡
+│   │   ├── mode.py         # 权限模式
+│   │   └── bubble.py       # 权限冒泡
 │   ├── prompt/             # 系统提示词
-│   │   ├── system.py       # 系统提示
-│   │   ├── tools.py        # 工具提示
-│   │   └── agent.py        # Agent 提示
-│   ├── query/              # Query 循环
+│   │   ├── system.py       # 系统提示词
+│   │   ├── tools.py        # 工具提示词
+│   │   └── agent.py        # Agent 提示词
+│   ├── query/              # 查询循环
 │   │   ├── loop.py         # 主循环
 │   │   ├── compact.py      # 自动压缩
 │   │   ├── token_budget.py # 预算控制
-│   │   ├── summarizer.py   # 摘要
-│   │   ├── tool_executor.py # 工具执行
-│   │   └── message_builder.py # 消息构建
+│   │   ├── summarizer.py   # 摘要器
+│   │   ├── tool_executor.py # 工具执行器
+│   │   └── message_builder.py # 消息构建器
 │   ├── skill/              # Skill 系统
-│   │   ├── manager.py      # Skill 管理
-│   │   ├── tool.py         # Skill 工具
+│   │   ├── manager.py      # Skill 管理器
+│   │   ├── tool.py        # Skill 工具
 │   │   └── commands.py     # Skill 命令
 │   ├── teammate/           # Teammate 系统
-│   │   ├── tmux.py         # Tmux 实现
+│   │   ├── tmux.py        # Tmux 实现
 │   │   ├── in_process.py  # 进程内
-│   │   ├── mailbox.py      # 消息队列
-│   │   ├── spawn.py        # Spawn 管理
-│   │   └── send_message.py # 消息发送
+│   │   ├── mailbox.py     # 消息队列
+│   │   ├── spawn.py       # 生成管理器
+│   │   └── send_message.py # 消息发送器
 │   ├── tool/               # 工具系统
 │   │   ├── base.py        # 工具基类
-│   │   ├── registry.py    # 工具注册
+│   │   ├── registry.py    # 工具注册表
 │   │   └── builtin/       # 内置工具
 │   │       ├── bash.py
 │   │       ├── read.py
@@ -299,7 +299,7 @@ ccmas-python-cli/
 
 ## 配置
 
-配置文件位于: `~/.ccmas/config.json`
+配置文件位于：`~/.ccmas/config.json`
 
 ### OpenAI 兼容 API 示例
 

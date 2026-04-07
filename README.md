@@ -12,7 +12,7 @@ Compatible with OpenAI-format models (vLLM, Ollama, MiniMax, DeepSeek, etc.).
 
 ## Screenshot
 
-!\[CCMAS Startup]\(G:\Projects\ClaudeCode\ccmas-python-cli\docs\ccmas-startup.png)
+![CCMAS Startup](src/asset/ccmas-startup.png)
 
 ### Core Features
 
