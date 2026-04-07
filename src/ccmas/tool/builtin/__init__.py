@@ -5,11 +5,17 @@ This module exports all built-in tools that are available by default.
 """
 
 from ccmas.tool.builtin.bash import BashTool
+from ccmas.tool.builtin.edit import EditTool
+from ccmas.tool.builtin.glob import GlobTool
+from ccmas.tool.builtin.grep import GrepTool
 from ccmas.tool.builtin.read import ReadTool
 from ccmas.tool.builtin.write import WriteTool
 
 __all__ = [
     "BashTool",
+    "EditTool",
+    "GlobTool",
+    "GrepTool",
     "ReadTool",
     "WriteTool",
     "get_builtin_tools",
@@ -25,6 +31,9 @@ def get_builtin_tools():
     """
     return [
         BashTool(),
+        EditTool(),
+        GlobTool(),
+        GrepTool(),
         ReadTool(),
         WriteTool(),
     ]

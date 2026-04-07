@@ -17,6 +17,8 @@ import click
 from ccmas import __version__
 from ccmas.cli.config import CLIConfig, load_config, save_config, merge_config_with_args, get_config_path
 from ccmas.cli.commands import interactive_mode, single_task, create_client
+from ccmas.memory.loader import load_ccmas_md, CCMAS_FILE_NAME
+from ccmas.memory.session import SessionManager
 
 
 def run_setup_wizard(force: bool = False) -> Optional[CLIConfig]:
@@ -194,6 +196,18 @@ def run_setup_wizard(force: bool = False) -> Optional[CLIConfig]:
     "--output", "-o", default=None, type=click.Path(),
     help="Output file for single task mode"
 )
+@click.option(
+    "--continue", "use_continue", is_flag=True, default=False,
+    help="Continue from last session"
+)
+@click.option(
+    "--load-session", "load_session_id", default=None, type=str,
+    help="Load a specific historical session by ID"
+)
+@click.option(
+    "--no-memory", is_flag=True, default=False,
+    help="Disable memory loading"
+)
 @click.argument("task", required=False)
 @click.pass_context
 def main(
@@ -214,6 +228,9 @@ def main(
     verbose: bool,
     version: bool,
     output: Optional[str],
+    use_continue: bool,
+    load_session_id: Optional[str],
+    no_memory: bool,
     task: Optional[str],
 ) -> None:
     """
@@ -313,6 +330,38 @@ def main(
             os.chdir(config.workspace)
         except Exception as e:
             click.echo(f"Warning: Could not change to workspace: {e}", err=True)
+
+    # Memory handling
+    session_to_load = None
+    if not no_memory:
+        # Check for CCMAS.md
+        ccmas_md_content = load_ccmas_md(cwd)
+        if ccmas_md_content:
+            click.echo(f"\n[Memory] {CCMAS_FILE_NAME} loaded - project context available")
+
+        # Check for historical sessions
+        session_manager = SessionManager()
+        latest_session = session_manager.get_latest_session(cwd)
+
+        if latest_session:
+            if use_continue:
+                # Auto-continue from last session
+                session_to_load = latest_session.id
+                click.echo(f"[Memory] Continuing session: {session_to_load}")
+            elif load_session_id:
+                # Load specific session
+                try:
+                    session_to_load = session_manager.load_session(load_session_id).id
+                    click.echo(f"[Memory] Loaded session: {session_to_load}")
+                except FileNotFoundError:
+                    click.echo(f"[Memory] Session not found: {load_session_id}", err=True)
+            elif not task:
+                # Ask user if they want to continue
+                click.echo(f"\n[Memory] Found previous session: {latest_session.id}")
+                click.echo(f"       Last updated: {latest_session.updated_at}")
+                if click.confirm("Continue from last session?"):
+                    session_to_load = latest_session.id
+                    click.echo(f"[Memory] Continuing session: {session_to_load}")
 
     # Create LLM client
     try:

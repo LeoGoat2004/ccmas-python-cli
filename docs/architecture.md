@@ -128,6 +128,9 @@
   - `read.py`: 文件读取
   - `write.py`: 文件写入
   - `bash.py`: 命令执行
+  - `edit.py`: 文件编辑
+  - `glob.py`: 文件模式匹配
+  - `grep.py`: 内容搜索
 
 **上下文模块** (`context/`):
 - `agent_context.py`: Agent 上下文定义
@@ -333,7 +336,21 @@ class SubagentContextManager:
     def __exit__(self, ...): ...
 ```
 
-### 5. 观察者模式
+### 5. 会话管理器
+
+用于跨会话的上下文保持：
+
+```python
+class SessionManager:
+    def save_session(self, session: Session) -> str: ...
+    def load_session(self, session_id: str) -> Session: ...
+    def list_sessions(self, workspace: Optional[str] = None) -> List[Session]: ...
+    def get_latest_session(self, workspace: str) -> Optional[Session]: ...
+```
+
+会话数据存储在 `~/.ccmas/history/` 目录，每个会话为一个 JSON 文件。
+
+### 6. 观察者模式
 
 用于流式输出：
 
@@ -432,6 +449,16 @@ class MyTool(Tool):
 @dataclass
 class MyAgentDefinition(AgentDefinition):
     kind: AgentKind = AgentKind.CUSTOM
+    # 自定义字段
+```
+
+### 4. 添加 Memory 文件类型
+
+在 `memory/types.py` 中添加新的 MemoryFile 类型：
+
+```python
+class CustomMemoryFile(MemoryFile):
+    type: str = Field(pattern="^custom$")
     # 自定义字段
 ```
 

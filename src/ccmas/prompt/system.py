@@ -200,8 +200,28 @@ def build_system_prompt(
     model_id: Optional[str] = None,
     output_style_config: Optional[dict] = None,
     enabled_tools: Optional[Set[str]] = None,
+    ccmas_md_content: Optional[str] = None,
+    memory_content: Optional[str] = None,
+    session_summary: Optional[str] = None,
 ) -> str:
-    """Build complete system prompt."""
+    """Build complete system prompt.
+
+    Args:
+        cwd: Current working directory.
+        is_git: Whether the directory is a git repository.
+        platform_name: Platform name.
+        shell: Shell name.
+        os_version: OS version.
+        model_id: Model identifier.
+        output_style_config: Output style configuration.
+        enabled_tools: Set of enabled tool names.
+        ccmas_md_content: Content of CCMAS.md file to append at the end.
+        memory_content: User's Memory content to append.
+        session_summary: Session summary to include.
+
+    Returns:
+        Complete system prompt string.
+    """
     sections = [
         get_intro_section(output_style_config),
         get_system_section(),
@@ -212,5 +232,14 @@ def build_system_prompt(
         get_output_efficiency_section(),
         get_env_info(cwd, is_git, platform_name, shell, os_version, model_id),
     ]
-    
+
+    if session_summary:
+        sections.append(f"# Session Summary\n\n{session_summary}")
+
+    if memory_content:
+        sections.append(f"# Memory\n\n{memory_content}")
+
+    if ccmas_md_content:
+        sections.append(f"# CCMAS.md\n\n{ccmas_md_content}")
+
     return "\n\n".join(sections)
