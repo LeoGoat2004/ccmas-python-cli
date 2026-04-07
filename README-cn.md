@@ -12,7 +12,7 @@ CCMAS (Multi-Agent System) Python CLI 是对多智能体系统核心逻辑的 Py
 
 ## 启动界面
 
-![CCMAS 启动界面](docs/ccmas-startup.png)
+!\[CCMAS 启动界面]\(G:\Projects\ClaudeCode\ccmas-python-cli\docs\ccmas-startup.png)
 
 ### 核心功能
 
