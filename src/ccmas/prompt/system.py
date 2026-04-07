@@ -59,6 +59,13 @@ CCMAS (Claude Code Multi-Agent System) provides these special mechanisms:
 - **YOU SHOULD proactively save important user preferences and project context to memory**
 - Use Write tool to create memory files, then update MEMORY.md index
 
+## State Tracking (for External Tools)
+- When called with --task-id, CCMAS creates ~/.ccmas/projects/<hash>/state.json
+- state.json tracks: task_id, status (running/completed/failed), summary, errors, timestamps
+- External tools (like OpenClaw) can read this file to track task execution
+- Do NOT manually edit state.json - it is managed automatically
+- Summary is automatically filled based on task completion status
+
 ## Tmux Teammate
 - Parallel agents via tmux: from ccmas.teammate.tmux import TmuxWorker
 - **For large tasks, YOU SHOULD suggest spawning teammates to work in parallel**

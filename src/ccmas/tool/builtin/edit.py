@@ -155,6 +155,7 @@ applied directly to the file."""
                     args.tool_call_id,
                     f"Successfully performed {operation} on {file_path}\n{result.get('summary', '')}",
                 )
+
                 return self._create_result(
                     args.tool_call_id, output, execution_time, result.get("metadata", {})
                 )

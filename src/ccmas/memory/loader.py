@@ -64,6 +64,11 @@ def get_project_dir() -> Path:
     return get_ccmas_dir() / "project"
 
 
+def get_projects_dir() -> Path:
+    """Get the projects directory for state tracking."""
+    return get_ccmas_dir() / "projects"
+
+
 def get_sessions_dir() -> Path:
     """Get the sessions directory."""
     return get_ccmas_dir() / "sessions"

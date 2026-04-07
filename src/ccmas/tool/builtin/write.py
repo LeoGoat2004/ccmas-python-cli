@@ -122,6 +122,7 @@ overwrite existing files."""
                 args.tool_call_id,
                 f"Successfully wrote {file_stat.st_size} bytes to {file_path}",
             )
+
             return self._create_result(args.tool_call_id, output, execution_time, metadata)
 
         except PermissionError:

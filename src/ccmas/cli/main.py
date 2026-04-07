@@ -329,6 +329,10 @@ main.add_command(skill_group)
     "--no-memory", is_flag=True, default=False,
     help="Disable memory loading"
 )
+@click.option(
+    "--task-id", default=None, type=str,
+    help="Task ID for state tracking (enables state.json for external tools)"
+)
 @click.argument("task", required=False)
 def run(
     workspace: Optional[str],
@@ -350,6 +354,7 @@ def run(
     use_continue: bool,
     load_session_id: Optional[str],
     no_memory: bool,
+    task_id: Optional[str],
     task: Optional[str],
 ) -> None:
     """
@@ -448,6 +453,16 @@ def run(
         except Exception as e:
             click.echo(f"Warning: Could not change to workspace: {e}", err=True)
 
+    # Project state tracking (for external tools like OpenClaw)
+    if task_id:
+        from ccmas.memory.project_state import create_project_state, mark_task_running
+        try:
+            create_project_state(task_id, cwd)
+            mark_task_running()
+            click.echo(f"[State] Task ID: {task_id} - state.json tracking enabled")
+        except Exception as e:
+            click.echo(f"Warning: Could not initialize state tracking: {e}", err=True)
+
     # Memory handling
     session_to_load = None
     if not no_memory:
@@ -497,10 +512,34 @@ def run(
             asyncio.run(single_task(config, client, task, output))
         else:
             asyncio.run(interactive_mode(config, client))
+
+        # Mark task as completed
+        if task_id:
+            from ccmas.memory.project_state import mark_task_completed
+            try:
+                mark_task_completed()
+            except Exception:
+                pass
+
+        sys.exit(0)
     except KeyboardInterrupt:
+        # Mark task as failed on interrupt
+        if task_id:
+            from ccmas.memory.project_state import mark_task_failed
+            try:
+                mark_task_failed("Interrupted by user")
+            except Exception:
+                pass
         click.echo("\n\nInterrupted. Goodbye!")
         sys.exit(0)
     except Exception as e:
+        # Mark task as failed
+        if task_id:
+            from ccmas.memory.project_state import mark_task_failed
+            try:
+                mark_task_failed(str(e))
+            except Exception:
+                pass
         click.echo(f"\nError: {e}", err=True)
         if verbose:
             import traceback

@@ -10,6 +10,10 @@ CCMAS (Multi-Agent System) Python CLI is a Python implementation of multi-agent 
 
 Compatible with OpenAI-format models (vLLM, Ollama, MiniMax, DeepSeek, etc.).
 
+## Screenshot
+
+![CCMAS Startup](docs/ccmas-startup.png)
+
 ### Core Features
 
 - **MAS Workflow** - Five sub-agent modes (Fork, Named, In-process, Tmux, Remote)
@@ -24,6 +28,7 @@ Compatible with OpenAI-format models (vLLM, Ollama, MiniMax, DeepSeek, etc.).
 - **Tmux Teammate** - True multi-terminal parallel Agent
 - **Hooks System** - PreTool/PostTool hook support
 - **Error Recovery** - Auto-retry, checkpoint restore
+- **OpenClaw Integration** - Support external task coordination via state.json
 
 ## Installation
 
@@ -335,6 +340,25 @@ mypy src/
 | Error Recovery        | Yes       | Yes   |
 | CLAUDE.md Multi-level | Yes       | Yes   |
 | MCP Tools             | Yes       | No    |
+
+## OpenClaw Integration
+
+CCMAS supports integration with external task coordination tools like OpenClaw via `state.json`.
+
+When running with `--task-id`, CCMAS creates `~/.ccmas/projects/{hash}/state.json` to track task status:
+
+```json
+{
+  "task_id": "module_auth_v1",
+  "status": "running",
+  "summary": "",
+  "errors": [],
+  "started_at": "2026-04-08T00:10:00Z",
+  "updated_at": "2026-04-08T00:10:00Z"
+}
+```
+
+External tools can poll this file to monitor CCMAS task execution progress.
 
 ## License
 
