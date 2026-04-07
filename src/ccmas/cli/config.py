@@ -18,11 +18,17 @@ from pydantic import BaseModel, Field, field_validator
 class CLIConfig(BaseModel):
     """
     CLI configuration settings.
-    
+
     Manages all configuration options for the CCMAS CLI,
     including model settings, API endpoints, and user preferences.
     """
-    
+
+    # Workspace settings
+    workspace: str = Field(
+        default=None,
+        description="Working directory for the CLI"
+    )
+
     # Model settings
     model: str = Field(
         default="gpt-4",
@@ -38,7 +44,7 @@ class CLIConfig(BaseModel):
         default=None,
         description="Maximum tokens to generate"
     )
-    
+
     # API settings
     api_base: Optional[str] = Field(
         default=None,
@@ -48,13 +54,13 @@ class CLIConfig(BaseModel):
         default=None,
         description="API key for authentication"
     )
-    
+
     # Backend settings
     backend: str = Field(
         default="openai",
         description="Backend to use (openai, ollama, vllm)"
     )
-    
+
     # Ollama specific settings
     ollama_base_url: str = Field(
         default="http://localhost:11434",
