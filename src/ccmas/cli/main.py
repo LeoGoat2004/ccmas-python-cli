@@ -231,6 +231,18 @@ def run_setup_wizard(force: bool = False) -> Optional[CLIConfig]:
         click.echo(f"\n[WARNING] Could not save config: {e}", err=True)
         click.echo("Config will not persist after this session.")
 
+    # Create memory directory and default MEMORY.md
+    try:
+        from ccmas.memory.template import get_user_memory_template
+        memory_dir = get_user_memory_dir()
+        memory_dir.mkdir(parents=True, exist_ok=True)
+        memory_file = memory_dir / "MEMORY.md"
+        if not memory_file.exists():
+            memory_file.write_text(get_user_memory_template(), encoding="utf-8")
+        click.echo(f"[OK] Memory directory created at {memory_dir}")
+    except Exception as e:
+        click.echo(f"[WARNING] Could not create memory directory: {e}", err=True)
+
     return new_config
 
 
