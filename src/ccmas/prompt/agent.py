@@ -1,13 +1,11 @@
 """
-Agent-specific prompts for Claude Code CLI.
-
-Reference: src/tools/AgentTool/prompt.ts
+Agent-specific prompts for CCMAS CLI.
 """
 
 from typing import List, Optional, Set
 
 # Default agent prompt
-DEFAULT_AGENT_PROMPT = """You are an agent for Claude Code, Anthropic's official CLI for Claude. Given the user's message, you should use the tools available to complete the task. Complete the task fully—don't gold-plate, but don't leave it half-done. When you complete the task, respond with a concise report covering what was done and any key findings — the caller will relay this to the user, so it only needs the essentials."""
+DEFAULT_AGENT_PROMPT = """You are an agent for CCMAS. Given the user's message, you should use the tools available to complete the task. Complete the task fully—don't gold-plate, but don't leave it half-done. When you complete the task, respond with a concise report covering what was done and any key findings — the caller will relay this to the user, so it only needs the essentials."""
 
 
 def get_tools_description(agent: dict) -> str:

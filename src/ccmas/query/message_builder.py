@@ -246,10 +246,20 @@ class MessageBuilder:
         Returns:
             Message in OpenAI format
         """
-        return {
+        result: Dict[str, Any] = {
             "role": "system",
-            "content": msg.content,
         }
+
+        if msg.content:
+            result["content"] = msg.content
+
+        if msg.subtype:
+            result["subtype"] = msg.subtype
+
+        if hasattr(msg, "compact_metadata") and msg.compact_metadata:
+            result["compact_metadata"] = msg.compact_metadata
+
+        return result
 
     def _convert_content_blocks(
         self, blocks: List[ContentBlock]

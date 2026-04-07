@@ -1,5 +1,5 @@
 """
-CCMAS - Claude Code Multi-Agent System Python CLI
+CCMAS - Multi-Agent System Python CLI
 
 A powerful multi-agent system command-line tool for building and managing
 AI-powered applications.

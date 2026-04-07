@@ -220,6 +220,8 @@ class SystemMessage(BaseMessage):
     type: Literal["system"] = "system"
     role: Literal["system"] = "system"
     content: str
+    subtype: Optional[str] = None
+    compact_metadata: Optional[Dict[str, Any]] = None
 
     def to_openai_format(self) -> Dict[str, Any]:
         """
@@ -228,10 +230,15 @@ class SystemMessage(BaseMessage):
         Returns:
             Dict in OpenAI message format
         """
-        return {
+        result: Dict[str, Any] = {
             "role": "system",
             "content": self.content,
         }
+        if self.subtype:
+            result["subtype"] = self.subtype
+        if self.compact_metadata:
+            result["compact_metadata"] = self.compact_metadata
+        return result
 
 
 # Union type for all messages

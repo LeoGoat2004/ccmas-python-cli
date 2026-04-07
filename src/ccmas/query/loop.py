@@ -8,12 +8,28 @@ handling message processing, tool execution, and conversation flow.
 from __future__ import annotations
 
 import asyncio
+import random
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
-from uuid import uuid4
 
 from ccmas.llm.client import LLMClient
+from ccmas.memory.state_manager import RecoveryManager, get_state_manager
+from ccmas.query.token_budget import (
+    BudgetTracker,
+    ContinueDecision,
+    StopDecision,
+    TokenBudgetDecision,
+    check_token_budget,
+    parse_token_budget,
+)
+from ccmas.query.compact import (
+    compact_messages,
+    estimate_tokens_for_messages,
+    is_compact_boundary_message,
+    build_post_compact_messages,
+    CompactionResult,
+)
 from ccmas.query.message_builder import MessageBuilder
 from ccmas.query.tool_executor import StreamingToolExecutor, ToolExecutor
 from ccmas.types.message import (
@@ -34,6 +50,43 @@ class QueryState(str, Enum):
     ABORTED = "aborted"
     ERROR = "error"
     MAX_TURNS_REACHED = "max_turns_reached"
+
+
+API_RETRY_BASE_DELAY = 1.0
+API_RETRY_MAX_DELAY = 60.0
+API_MAX_RETRIES = 3
+
+
+def is_api_retryable_error(error: Exception) -> bool:
+    """Check if an API error is retryable."""
+    error_msg = str(error).lower()
+
+    retryable_statuses = ["500", "502", "503", "504", "429", "rate limit", "timeout"]
+
+    for status in retryable_statuses:
+        if status in error_msg:
+            return True
+
+    if isinstance(error, (asyncio.TimeoutError, ConnectionError, OSError)):
+        return True
+
+    return False
+
+
+def getRetryDelay(attempt: int, base_delay: float = API_RETRY_BASE_DELAY, max_delay: float = API_RETRY_MAX_DELAY) -> float:
+    """Calculate exponential backoff delay with jitter for API retries.
+
+    Args:
+        attempt: Current retry attempt number (0-indexed)
+        base_delay: Base delay in seconds
+        max_delay: Maximum delay in seconds
+
+    Returns:
+        Delay in seconds
+    """
+    delay = min(base_delay * (2 ** attempt), max_delay)
+    jitter = delay * 0.1 * random.random()
+    return delay + jitter
 
 
 @dataclass
@@ -66,6 +119,27 @@ class QueryConfig:
     max_concurrent_tools: int = 10
     enable_streaming: bool = True
     abort_on_error: bool = False
+    token_budget: Optional[int] = None
+    enable_recovery: bool = True
+    workspace: str = "default"
+    auto_save_interval: int = 10
+    auto_compact_enabled: bool = True
+    compact_token_threshold: int = 80000
+    compact_recent_count: int = 20
+    suppress_compact_follow_questions: bool = True
+
+
+def check_budget_and_continue(
+    tracker: BudgetTracker,
+    agent_id: Optional[str],
+    budget: Optional[int],
+    global_turn_tokens: int,
+) -> TokenBudgetDecision:
+    return check_token_budget(tracker, agent_id, budget, global_turn_tokens)
+
+
+def send_nudge_message(decision: ContinueDecision) -> SystemMessage:
+    return SystemMessage(content=decision.nudge_message)
 
 
 class QueryLoop:
@@ -111,9 +185,19 @@ class QueryLoop:
         # Tool executor
         self.tool_executor: Optional[StreamingToolExecutor] = None
 
+        # Budget tracking
+        self.budget_tracker: Optional[BudgetTracker] = None
+        self.global_turn_tokens: int = 0
+
+        # Recovery management
+        self._recovery_manager: Optional[RecoveryManager] = None
+        self._checkpoint_id: Optional[str] = None
+        self._turns_since_last_save: int = 0
+
     async def query(
         self,
         messages: List[Message],
+        restore_checkpoint_id: Optional[str] = None,
     ) -> AsyncIterator[Union[Message, str]]:
         """
         Execute the query loop.
@@ -122,38 +206,82 @@ class QueryLoop:
 
         Args:
             messages: Initial messages for the conversation
+            restore_checkpoint_id: Optional checkpoint ID to restore from
 
         Yields:
             Messages and content chunks as they are generated
         """
-        self.messages = list(messages)
-        self.turn_count = 0
-        self.state = QueryState.RUNNING
-        self.abort_signal.clear()
+        if restore_checkpoint_id:
+            restored_state = self._restore_from_checkpoint(restore_checkpoint_id)
+            if restored_state:
+                self.messages = restored_state["messages"]
+                self.turn_count = restored_state["turn_count"]
+                self.state = restored_state["state"]
+                self.global_turn_tokens = restored_state["global_turn_tokens"]
+                yield SystemMessage(
+                    content=f"[Recovery] Restored from checkpoint. Resuming from turn {self.turn_count}..."
+                )
+        else:
+            self.messages = list(messages)
+            self.turn_count = 0
+            self.state = QueryState.RUNNING
 
-        # Initialize tool executor
+        self.abort_signal.clear()
+        self.global_turn_tokens = 0
+        self._turns_since_last_save = 0
+
+        if self.config.token_budget:
+            self.budget_tracker = BudgetTracker.create()
+        else:
+            self.budget_tracker = None
+
         self.tool_executor = StreamingToolExecutor(
             max_concurrent=self.config.max_concurrent_tools,
             timeout=self.config.timeout,
         )
 
+        if self.config.enable_recovery:
+            self._recovery_manager = RecoveryManager(get_state_manager())
+            self._save_checkpoint()
+
         try:
             while self.state == QueryState.RUNNING:
-                # Check abort signal
                 if self.abort_signal.is_set():
                     self.state = QueryState.ABORTED
                     break
 
-                # Check max turns
                 if self.turn_count >= self.config.max_turns:
                     self.state = QueryState.MAX_TURNS_REACHED
                     break
 
-                # Execute one turn
                 async for output in self._execute_turn():
                     yield output
 
                 self.turn_count += 1
+                self._turns_since_last_save += 1
+
+                if self.budget_tracker:
+                    self.global_turn_tokens = estimate_tokens_for_messages(
+                        self.message_builder.build_messages(self.messages)
+                    )
+
+                if self.budget_tracker and self.config.token_budget:
+                    decision = check_budget_and_continue(
+                        self.budget_tracker,
+                        None,
+                        self.config.token_budget,
+                        self.global_turn_tokens,
+                    )
+                    if decision.action == 'stop':
+                        self.state = QueryState.COMPLETED
+                        break
+                    elif isinstance(decision, ContinueDecision) and decision.nudge_message:
+                        yield send_nudge_message(decision)
+
+                if (self.config.enable_recovery and
+                    self._turns_since_last_save >= self.config.auto_save_interval):
+                    self._save_checkpoint()
+                    self._turns_since_last_save = 0
 
         except Exception as e:
             self.state = QueryState.ERROR
@@ -161,9 +289,37 @@ class QueryLoop:
             yield SystemMessage(content=error_msg)
 
         finally:
-            # Clean up
             if self.tool_executor:
                 await self.tool_executor.get_remaining_results()
+
+            if self.config.enable_recovery and self._checkpoint_id:
+                self._save_checkpoint()
+
+    def _restore_from_checkpoint(self, checkpoint_id: str) -> Optional[Dict[str, Any]]:
+        """Restore state from a checkpoint."""
+        try:
+            recovery_manager = RecoveryManager(get_state_manager())
+            checkpoint = recovery_manager._state_manager.load_checkpoint(checkpoint_id)
+            return recovery_manager.restore_from_checkpoint(checkpoint)
+        except Exception:
+            return None
+
+    def _save_checkpoint(self) -> Optional[str]:
+        """Save current state to a checkpoint."""
+        if not self._recovery_manager:
+            return None
+        try:
+            checkpoint = self._recovery_manager.save_recovery_checkpoint(
+                workspace=self.config.workspace,
+                messages=self.messages,
+                turn_count=self.turn_count,
+                state=self.state.value,
+                global_turn_tokens=self.global_turn_tokens,
+            )
+            self._checkpoint_id = checkpoint.checkpoint_id
+            return checkpoint.checkpoint_id
+        except Exception:
+            return None
 
     async def _execute_turn(self) -> AsyncIterator[Union[Message, str]]:
         """
@@ -172,6 +328,15 @@ class QueryLoop:
         Yields:
             Messages and content chunks for this turn
         """
+        # Check if compaction is needed before API call
+        if self.should_compact():
+            compaction_result = self.run_compaction()
+            yield SystemMessage(
+                content=f"[AutoCompact] Conversation compacted. "
+                        f"Pre-compact tokens: {compaction_result.pre_compact_token_count}, "
+                        f"Post-compact tokens: {compaction_result.true_post_compact_token_count}"
+            )
+
         # Build messages for API
         openai_messages = self.message_builder.build_messages(self.messages)
         system = self.message_builder.build_system_prompt()
@@ -190,7 +355,7 @@ class QueryLoop:
         system: str,
     ) -> AsyncIterator[Union[Message, str]]:
         """
-        Stream the assistant response.
+        Stream the assistant response with retry logic.
 
         Args:
             messages: Messages in OpenAI format
@@ -199,33 +364,40 @@ class QueryLoop:
         Yields:
             Content chunks and messages
         """
-        # Convert messages back to Message objects for the client
         msg_objects = self._convert_openai_messages(messages)
 
-        # Stream response
         accumulated_content = []
         tool_calls: List[ToolCall] = []
+        last_error: Optional[Exception] = None
 
-        try:
-            async for chunk in self.client.stream_with_tools(
-                msg_objects,
-                system=system,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-            ):
-                if isinstance(chunk, str):
-                    # Text content
-                    accumulated_content.append(chunk)
-                    yield chunk
-                elif isinstance(chunk, ToolCall):
-                    # Tool call
-                    tool_calls.append(chunk)
+        for attempt in range(API_MAX_RETRIES + 1):
+            try:
+                async for chunk in self.client.stream_with_tools(
+                    msg_objects,
+                    system=system,
+                    temperature=self.config.temperature,
+                    max_tokens=self.config.max_tokens,
+                ):
+                    if isinstance(chunk, str):
+                        accumulated_content.append(chunk)
+                        yield chunk
+                    elif isinstance(chunk, ToolCall):
+                        tool_calls.append(chunk)
 
-        except Exception as e:
-            yield SystemMessage(content=f"Streaming error: {e}")
-            return
+                break
 
-        # Create assistant message
+            except Exception as e:
+                last_error = e
+                if is_api_retryable_error(e) and attempt < API_MAX_RETRIES:
+                    delay = getRetryDelay(attempt)
+                    yield SystemMessage(
+                        content=f"[API Retry] Attempt {attempt + 1} failed: {e}. Retrying in {delay:.1f}s..."
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                yield SystemMessage(content=f"Streaming error: {e}")
+                return
+
         content = "".join(accumulated_content) if accumulated_content else None
         assistant_msg = AssistantMessage(
             content=content,
@@ -234,7 +406,6 @@ class QueryLoop:
         self.messages.append(assistant_msg)
         yield assistant_msg
 
-        # Execute tools if any
         if tool_calls:
             async for output in self._execute_tools(tool_calls):
                 yield output
@@ -245,7 +416,7 @@ class QueryLoop:
         system: str,
     ) -> AsyncIterator[Union[Message, str]]:
         """
-        Get a complete assistant response (non-streaming).
+        Get a complete assistant response (non-streaming) with retry logic.
 
         Args:
             messages: Messages in OpenAI format
@@ -254,27 +425,35 @@ class QueryLoop:
         Yields:
             Messages
         """
-        # Convert messages back to Message objects
         msg_objects = self._convert_openai_messages(messages)
+        last_error: Optional[Exception] = None
 
-        # Get complete response
-        try:
-            assistant_msg = await self.client.complete(
-                msg_objects,
-                system=system,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-            )
-            self.messages.append(assistant_msg)
-            yield assistant_msg
+        for attempt in range(API_MAX_RETRIES + 1):
+            try:
+                assistant_msg = await self.client.complete(
+                    msg_objects,
+                    system=system,
+                    temperature=self.config.temperature,
+                    max_tokens=self.config.max_tokens,
+                )
+                self.messages.append(assistant_msg)
+                yield assistant_msg
 
-            # Execute tools if any
-            if assistant_msg.tool_calls:
-                async for output in self._execute_tools(assistant_msg.tool_calls):
-                    yield output
+                if assistant_msg.tool_calls:
+                    async for output in self._execute_tools(assistant_msg.tool_calls):
+                        yield output
+                break
 
-        except Exception as e:
-            yield SystemMessage(content=f"Completion error: {e}")
+            except Exception as e:
+                last_error = e
+                if is_api_retryable_error(e) and attempt < API_MAX_RETRIES:
+                    delay = getRetryDelay(attempt)
+                    yield SystemMessage(
+                        content=f"[API Retry] Attempt {attempt + 1} failed: {e}. Retrying in {delay:.1f}s..."
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                yield SystemMessage(content=f"Completion error: {e}")
 
     async def _execute_tools(
         self,
@@ -342,7 +521,13 @@ class QueryLoop:
                     content=content or "",
                 ))
             elif role == "system":
-                result.append(SystemMessage(content=content or ""))
+                subtype = msg.get("subtype")
+                compact_metadata = msg.get("compact_metadata")
+                result.append(SystemMessage(
+                    content=content or "",
+                    subtype=subtype,
+                    compact_metadata=compact_metadata,
+                ))
 
         return result
 
@@ -350,6 +535,45 @@ class QueryLoop:
         """Abort the query loop."""
         self.abort_signal.set()
         self.state = QueryState.ABORTED
+
+    def should_compact(self) -> bool:
+        """
+        Check if conversation should be compacted.
+
+        Returns:
+            True if compaction is needed based on token count
+        """
+        if not self.config.auto_compact_enabled:
+            return False
+
+        if len(self.messages) < 2:
+            return False
+
+        token_count = estimate_tokens_for_messages(self.messages)
+        return token_count >= self.config.compact_token_threshold
+
+    def run_compaction(self) -> CompactionResult:
+        """
+        Execute the compaction process.
+
+        Returns:
+            CompactionResult containing compacted messages and metadata
+        """
+        def summarize_callback(prompt: str) -> str:
+            result: List[str] = []
+            return ""
+
+        result = compact_messages(
+            messages=self.messages,
+            recent_count=self.config.compact_recent_count,
+            summarize_callback=summarize_callback,
+            suppress_follow_up_questions=self.config.suppress_compact_follow_questions,
+        )
+
+        compacted = build_post_compact_messages(result)
+        self.messages = compacted
+
+        return result
 
     def get_result(self) -> QueryResult:
         """

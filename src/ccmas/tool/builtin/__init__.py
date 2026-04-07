@@ -4,6 +4,7 @@ Built-in tools for CCMAS.
 This module exports all built-in tools that are available by default.
 """
 
+from ccmas.skill import SkillTool
 from ccmas.tool.builtin.bash import BashTool
 from ccmas.tool.builtin.edit import EditTool
 from ccmas.tool.builtin.glob import GlobTool
@@ -17,6 +18,7 @@ __all__ = [
     "GlobTool",
     "GrepTool",
     "ReadTool",
+    "SkillTool",
     "WriteTool",
     "get_builtin_tools",
 ]
@@ -35,6 +37,7 @@ def get_builtin_tools():
         GlobTool(),
         GrepTool(),
         ReadTool(),
+        SkillTool(),
         WriteTool(),
     ]
 

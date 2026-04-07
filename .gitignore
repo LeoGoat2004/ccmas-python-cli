@@ -161,6 +161,9 @@ Thumbs.db
 config.local.yaml
 secrets.yaml
 .secrets/
+.ccmas/
+docs/
+docs/_build/
 
 # Logs
 logs/

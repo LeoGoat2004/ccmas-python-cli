@@ -91,7 +91,7 @@ class ConsoleRenderer:
     def render_welcome(self) -> None:
         """Render welcome message."""
         welcome_text = """
-[bold cyan]CCMAS - Claude Code Multi-Agent System[/bold cyan]
+[bold cyan]CCMAS - Multi-Agent System[/bold cyan]
 [dim]A powerful multi-agent system command-line tool[/dim]
 
 Type [bold]help[/bold] for available commands

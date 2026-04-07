@@ -2,12 +2,12 @@
 
 import hashlib
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 from .types import Session
+from .loader import get_sessions_dir
 
 
 class SessionManager:
@@ -17,10 +17,10 @@ class SessionManager:
         """Initialize SessionManager.
 
         Args:
-            history_dir: Directory to store session files. Defaults to ~/.ccmas/history/
+            history_dir: Directory to store session files. Defaults to ~/.ccmas/memory/sessions/
         """
         if history_dir is None:
-            history_dir = Path.home() / ".ccmas" / "history"
+            history_dir = get_sessions_dir()
         self.history_dir = history_dir
         self.history_dir.mkdir(parents=True, exist_ok=True)
 
@@ -115,3 +115,14 @@ class SessionManager:
         """
         sessions = self.list_sessions(workspace=workspace)
         return sessions[0] if sessions else None
+
+
+_session_manager: Optional[SessionManager] = None
+
+
+def get_session_manager() -> SessionManager:
+    """Get or create a singleton SessionManager instance."""
+    global _session_manager
+    if _session_manager is None:
+        _session_manager = SessionManager()
+    return _session_manager

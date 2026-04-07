@@ -1,7 +1,5 @@
 """
-Tool-specific prompts for Claude Code CLI.
-
-Reference: src/tools/*/prompt.ts
+Tool-specific prompts for CCMAS CLI.
 """
 
 from typing import Optional
@@ -137,7 +135,7 @@ def get_read_tool_prompt(
     
     image_instruction = ""
     if supports_images:
-        image_instruction = "- This tool allows Claude Code to read images (eg PNG, JPG, etc). When reading an image file the contents are presented visually as Claude Code is a multimodal LLM."
+        image_instruction = "- This tool allows CCMAS to read images (eg PNG, JPG, etc). When reading an image file the contents are presented visually as CCMAS is a multimodal LLM."
     
     notebook_instruction = ""
     if supports_notebooks:

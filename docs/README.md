@@ -1,10 +1,10 @@
 # CCMAS 文档中心
 
-欢迎来到 CCMAS（Claude Code Multi-Agent System）文档中心。本文档提供了关于 CCMAS Python CLI 的全面指南，帮助您快速上手并充分利用这个强大的多智能体系统。
+欢迎来到 CCMAS（Multi-Agent System）文档中心。本文档提供了关于 CCMAS Python CLI 的全面指南。
 
-## 什么是 CCMAS？
+## 项目简介
 
-CCMAS 是一个基于 Python 的多智能体系统命令行工具，它允许您构建和管理 AI 驱动的应用程序。它支持多种 LLM 后端（OpenAI、Ollama、vLLM），提供灵活的 Agent 系统、上下文隔离、工具系统和 Query 循环等核心功能。
+CCMAS 是一个基于 Python 的多智能体系统命令行工具，参考了 Claude Code 源码，复刻了多智能体系统的核心机制。它支持多种 LLM 后端（OpenAI、Ollama、vLLM、MiniMax、DeepSeek等），提供完整的 Agent 系统、Memory 系统、AutoCompact 自动压缩、Token Budget 预算控制等功能。
 
 ## 文档索引
 
@@ -20,17 +20,22 @@ CCMAS 是一个基于 Python 的多智能体系统命令行工具，它允许您
 - [工具系统解析](tool_system.md) - 工具注册、执行和扩展
 - [Query 循环解析](query_loop.md) - 查询循环和对话管理
 - [LLM 集成解析](llm_integration.md) - 大语言模型客户端集成
+- [Memory 系统解析](memory_system.md) - 记忆系统的使用和配置
+- [Skill 系统解析](skill_system.md) - 技能系统的使用和创建
+- [Hooks 系统解析](hooks_system.md) - 钩子系统的使用和配置
 
 ### 示例代码
 - [基本使用示例](examples/basic_usage.py) - 入门示例和常见用法
 - [多智能体示例](examples/multi_agent.py) - 多 Agent 协作示例
 - [自定义 Agent 示例](examples/custom_agent.py) - 创建自定义 Agent 的完整示例
+- [Tmux Teammate 示例](examples/tmux_teammate.py) - Tmux 并行 Agent 示例
+- [Memory 使用示例](examples/memory_usage.py) - Memory 系统使用示例
 
 ## 快速开始
 
 ```bash
 # 安装 CCMAS
-pip install ccmas
+pip install -e .
 
 # 启动交互模式
 ccmas
@@ -38,70 +43,64 @@ ccmas
 # 执行单个任务
 ccmas "解释量子计算的基本原理"
 
+# Token Budget 预算控制
+ccmas "+500k 实现一个 Web 服务器"
+
 # 使用 Ollama 后端
-ccmas --ollama --model llama2
+ccmas --ollama --model llama3
+
+# 使用自定义 API
+ccmas --api-base https://api.minimax.chat/v1 --api-key YOUR_KEY --model MiniMax-M2.7
 ```
 
-## 核心特性
+## 核心功能
 
-### 多智能体系统
-- 内置多种专业 Agent（通用、代码审查、探索、测试等）
-- 支持自定义 Agent 定义
-- Fork 子 Agent 机制用于任务委派
-
-### 上下文隔离
-- 基于 contextvars 的上下文管理
-- 支持 Subagent 和 Teammate 两种上下文类型
-- 安全的并发执行环境
-
-### 工具系统
-- 内置文件操作、代码执行、搜索等工具
-- 可扩展的工具注册机制
-- 并发工具执行和超时控制
-
-### 多后端支持
-- OpenAI API 兼容
-- Ollama 本地部署
-- vLLM 高性能推理
+| 功能 | 说明 |
+|------|------|
+| MAS 工作逻辑 | 五种子代理模式：Fork、Named、In-process、Tmux、Remote |
+| AutoCompact | 对话过长时自动生成摘要 |
+| Token Budget | 支持 +500k、use 2M tokens 语法 |
+| Memory 系统 | MEMORY.md 索引，user/feedback/project/reference 四种类型 |
+| Skill 系统 | /skill-name 调用预设技能 |
+| Tmux Teammate | 真正的多终端并行 Agent |
+| Hooks 系统 | PreTool/PostTool 钩子 |
+| 错误恢复 | 自动重试、断点保存 |
+| CLAUDE.md 多级 | 目录树任意位置创建 CLAUDE.md |
 
 ## 项目结构
 
 ```
 ccmas-python-cli/
 ├── src/ccmas/
-│   ├── agent/          # Agent 定义和执行
-│   ├── cli/            # 命令行界面
-│   ├── context/        # 上下文管理
-│   ├── llm/            # LLM 客户端
-│   ├── permission/     # 权限管理
-│   ├── prompt/         # 提示词管理
-│   ├── query/          # 查询循环
-│   ├── tool/           # 工具系统
-│   └── types/          # 类型定义
-├── docs/               # 文档
-└── examples/           # 示例代码
+│   ├── agent/              # Agent 系统
+│   ├── cli/                # CLI 入口
+│   ├── context/            # 上下文隔离
+│   ├── coordinator/        # Coordinator 模式
+│   ├── hooks/             # Hooks 系统
+│   ├── llm/                # LLM 客户端
+│   ├── memory/             # Memory 系统
+│   ├── permission/         # 权限系统
+│   ├── prompt/             # 系统提示词
+│   ├── query/              # Query 循环
+│   ├── skill/              # Skill 系统
+│   ├── teammate/           # Teammate 系统
+│   ├── tool/               # 工具系统
+│   └── types/              # 类型定义
+├── docs/                   # 文档
+└── examples/               # 示例代码
 ```
 
-## 贡献指南
+## 配置
 
-欢迎贡献代码、报告问题或提出改进建议。请遵循以下步骤：
-
-1. Fork 项目仓库
-2. 创建功能分支
-3. 提交更改
-4. 创建 Pull Request
-
-## 许可证
-
-CCMAS 使用 MIT 许可证。详见项目根目录的 LICENSE 文件。
+配置文件位于: `~/.ccmas/config.json`
 
 ## 获取帮助
 
-- 查看 [GitHub Issues](https://github.com/ccmas/ccmas-python-cli/issues)
+- 查看 GitHub Issues
 - 阅读完整文档
 - 参考示例代码
 
 ---
 
-**版本**: 0.1.0  
+**版本**: 0.2.0
 **最后更新**: 2026-04-07

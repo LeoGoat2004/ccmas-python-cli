@@ -1,5 +1,5 @@
 """
-Prompt module for Claude Code CLI.
+Prompt module for CCMAS CLI.
 
 This module provides prompt building functionality for system prompts,
 agent prompts, and tool-specific prompts.

@@ -28,7 +28,7 @@ from ccmas.types.message import (
     create_user_message,
     create_tool_message,
 )
-from ccmas.prompt.system import build_system_prompt
+from ccmas.prompt.system import build_system_prompt, find_claude_md_files
 from ccmas.types.tool import ToolDefinition
 from ccmas.tool.base import ToolCallArgs
 from ccmas.tool.builtin import register_builtin_tools
@@ -74,9 +74,40 @@ class CommandHandler:
         cwd = self.config.workspace or str(Path.cwd())
         is_git = (Path(cwd) / ".git").exists()
 
+        from ccmas.memory.loader import (
+            load_user_memory,
+            load_ccmas_md,
+            get_user_memory_dir,
+            get_project_memory_dir,
+            ensure_ccmas_dirs,
+            ensure_memory_dir,
+        )
+        from ccmas.memory.template import get_default_memory_template
+
+        ensure_ccmas_dirs()
+
+        user_memory_dir = str(get_user_memory_dir())
+        user_index = get_user_memory_dir() / "MEMORY.md"
+        if not user_index.exists():
+            user_index.write_text(get_default_memory_template(), encoding="utf-8")
+
+        project_memory_dir = None
+        if cwd:
+            ensure_memory_dir(cwd)
+            project_memory_dir = str(get_project_memory_dir(cwd))
+
+        memory_content = load_user_memory()
+        claude_md_files = find_claude_md_files(cwd) if cwd else None
+        claude_md_content = "\n\n".join(
+            f"## {path}\n\n{content}" for path, content in claude_md_files
+        ) if claude_md_files else None
+
         return build_system_prompt(
             cwd=cwd,
             is_git=is_git,
+            memory_dir=user_memory_dir,
+            memory_content=memory_content,
+            claude_md_content=claude_md_content,
         )
 
     def is_running(self) -> bool:

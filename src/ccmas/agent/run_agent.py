@@ -8,6 +8,8 @@ including the AgentExecutor class and run_agent function.
 from __future__ import annotations
 
 import asyncio
+import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
@@ -20,6 +22,7 @@ from ccmas.llm.client import LLMClient
 from ccmas.permission.bubble import BubblePermissionHandler
 from ccmas.permission.checker import PermissionChecker
 from ccmas.permission.mode import PermissionMode, PermissionResult
+from ccmas.teammate.tmux import TmuxWorker, TmuxMailbox
 from ccmas.tool.base import Tool, ToolCallArgs, ToolExecutionResult
 from ccmas.tool.registry import get_registry
 from ccmas.types.message import (
@@ -33,6 +36,10 @@ from ccmas.types.tool import ToolDefinition
 
 if TYPE_CHECKING:
     from ccmas.agent.fork_subagent import ForkSubagentManager
+
+logger = logging.getLogger(__name__)
+
+TASK_NOTIFICATION_PATTERN = re.compile(r"<task-notification>(.*?)</task-notification>", re.DOTALL)
 
 
 @dataclass
@@ -530,7 +537,9 @@ async def run_agent(
     Returns:
         AgentExecutionResult
     """
-    # Create executor
+    if is_tmux_agent(agent):
+        return await run_agent_tmux(agent, messages, context=None, timeout=60.0)
+
     executor = AgentExecutor(
         agent=agent,
         llm_client=llm_client,
@@ -538,10 +547,8 @@ async def run_agent(
         permission_checker=permission_checker,
     )
 
-    # Create subagent context
     context = create_subagent_context_for_agent(agent, parent_context)
 
-    # Run within context
     def execute_in_context():
         return executor.execute(messages)
 
@@ -575,7 +582,11 @@ async def run_agent_streaming(
     Returns:
         AgentExecutionResult
     """
-    # Create executor with streaming enabled
+    if is_tmux_agent(agent):
+        return await run_agent_tmux_streaming(
+            agent, messages, on_chunk, context=None, timeout=60.0
+        )
+
     exec_config = config or AgentExecutionConfig()
     exec_config.enable_streaming = True
 
@@ -586,13 +597,319 @@ async def run_agent_streaming(
         permission_checker=permission_checker,
     )
 
-    # Create subagent context
     context = create_subagent_context_for_agent(agent, parent_context)
 
-    # Run within context
     with SubagentContextManager(context):
         return await executor.execute_streaming(
             messages=messages,
             on_chunk=on_chunk,
             on_tool_call=on_tool_call,
         )
+
+
+def is_tmux_agent(agent: AgentDefinition) -> bool:
+    """
+    Check if an agent is configured as tmux-based.
+
+    Args:
+        agent: The agent definition
+
+    Returns:
+        True if agent is tmux-based
+    """
+    return agent.config.metadata.get("subagent_type") == "tmux"
+
+
+async def run_agent_tmux(
+    agent: AgentDefinition,
+    messages: List[Message],
+    context: Optional[Dict[str, Any]] = None,
+    timeout: float = 60.0,
+) -> AgentExecutionResult:
+    """
+    Run a tmux-based agent.
+
+    This executes an agent in a tmux worker, allowing for isolated
+    execution environment and inter-process communication.
+
+    Args:
+        agent: The agent definition
+        messages: The conversation messages
+        context: Additional context for the tmux worker
+        timeout: Maximum execution time
+
+    Returns:
+        AgentExecutionResult
+    """
+    start_time = time.time()
+
+    worker = TmuxWorker(
+        agent_id=agent.name,
+        session_name=f"ccmas-agent-{agent.name}",
+        socket_name="ccmas-agents",
+    )
+
+    mailbox = TmuxMailbox(agent.name, worker)
+
+    try:
+        await worker.start()
+
+        task_content = "\n".join(
+            msg.content if isinstance(msg.content, str) else str(msg.content)
+            for msg in messages
+            if hasattr(msg, 'content')
+        )
+
+        await mailbox.put({
+            "type": "agent_task",
+            "agent_name": agent.name,
+            "content": task_content,
+            "context": context or {},
+            "system_prompt": agent.config.system_prompt or "",
+        })
+
+        response = await mailbox.request(
+            {"type": "execute_agent"},
+            timeout=timeout,
+        )
+
+        execution_time_ms = (time.time() - start_time) * 1000
+
+        output = ""
+        tool_results: List[ToolExecutionResult] = []
+
+        if response:
+            content = response.get("content", "")
+            content = _extract_content_from_response(content)
+
+            notifications = _extract_task_notifications(content)
+            if notifications:
+                for notification in notifications:
+                    tool_results.append(ToolExecutionResult(
+                        tool_call_id=f"notification_{len(tool_results)}",
+                        tool_name="task_notification",
+                        output=_create_notification_output(notification),
+                        execution_time_ms=0,
+                    ))
+                content = _remove_task_notifications(content)
+
+            output = content
+
+        message = AssistantMessage(content=output)
+
+        return AgentExecutionResult(
+            success=True,
+            message=message,
+            iterations=1,
+            execution_time_ms=execution_time_ms,
+            tool_calls=[],
+            tool_results=tool_results,
+            metadata={
+                "agent_name": agent.name,
+                "execution_type": "tmux",
+            },
+        )
+
+    except asyncio.TimeoutError:
+        execution_time_ms = (time.time() - start_time) * 1000
+        return AgentExecutionResult(
+            success=False,
+            error="Execution timeout",
+            iterations=1,
+            execution_time_ms=execution_time_ms,
+            metadata={
+                "agent_name": agent.name,
+                "execution_type": "tmux",
+            },
+        )
+
+    except Exception as e:
+        execution_time_ms = (time.time() - start_time) * 1000
+        return AgentExecutionResult(
+            success=False,
+            error=str(e),
+            iterations=1,
+            execution_time_ms=execution_time_ms,
+            metadata={
+                "agent_name": agent.name,
+                "execution_type": "tmux",
+            },
+        )
+
+    finally:
+        await worker.stop()
+
+
+async def run_agent_tmux_streaming(
+    agent: AgentDefinition,
+    messages: List[Message],
+    on_chunk: Callable[[str], None],
+    context: Optional[Dict[str, Any]] = None,
+    timeout: float = 60.0,
+) -> AgentExecutionResult:
+    """
+    Run a tmux-based agent with streaming output.
+
+    Args:
+        agent: The agent definition
+        messages: The conversation messages
+        on_chunk: Callback for text chunks
+        context: Additional context for the tmux worker
+        timeout: Maximum execution time
+
+    Returns:
+        AgentExecutionResult
+    """
+    start_time = time.time()
+
+    worker = TmuxWorker(
+        agent_id=agent.name,
+        session_name=f"ccmas-agent-{agent.name}",
+        socket_name="ccmas-agents",
+    )
+
+    mailbox = TmuxMailbox(agent.name, worker)
+
+    try:
+        await worker.start()
+
+        task_content = "\n".join(
+            msg.content if isinstance(msg.content, str) else str(msg.content)
+            for msg in messages
+            if hasattr(msg, 'content')
+        )
+
+        await mailbox.put({
+            "type": "agent_task",
+            "agent_name": agent.name,
+            "content": task_content,
+            "context": context or {},
+            "system_prompt": agent.config.system_prompt or "",
+            "streaming": True,
+        })
+
+        output_parts = []
+        tool_results: List[ToolExecutionResult] = []
+
+        while True:
+            try:
+                response = await asyncio.wait_for(
+                    mailbox.request({"type": "get_next_chunk"}, timeout=5.0),
+                    timeout=timeout - (time.time() - start_time),
+                )
+
+                if not response:
+                    break
+
+                chunk_type = response.get("type")
+                if chunk_type == "content":
+                    chunk = response.get("content", "")
+                    output_parts.append(chunk)
+                    on_chunk(chunk)
+                elif chunk_type == "tool_call":
+                    pass
+                elif chunk_type == "done":
+                    break
+
+            except asyncio.TimeoutError:
+                break
+
+        execution_time_ms = (time.time() - start_time) * 1000
+
+        output = "".join(output_parts)
+        notifications = _extract_task_notifications(output)
+        if notifications:
+            for notification in notifications:
+                tool_results.append(ToolExecutionResult(
+                    tool_call_id=f"notification_{len(tool_results)}",
+                    tool_name="task_notification",
+                    output=_create_notification_output(notification),
+                    execution_time_ms=0,
+                ))
+            output = _remove_task_notifications(output)
+
+        message = AssistantMessage(content=output)
+
+        return AgentExecutionResult(
+            success=True,
+            message=message,
+            iterations=1,
+            execution_time_ms=execution_time_ms,
+            tool_calls=[],
+            tool_results=tool_results,
+            metadata={
+                "agent_name": agent.name,
+                "execution_type": "tmux_streaming",
+            },
+        )
+
+    except asyncio.TimeoutError:
+        execution_time_ms = (time.time() - start_time) * 1000
+        return AgentExecutionResult(
+            success=False,
+            error="Execution timeout",
+            iterations=1,
+            execution_time_ms=execution_time_ms,
+            metadata={
+                "agent_name": agent.name,
+                "execution_type": "tmux_streaming",
+            },
+        )
+
+    except Exception as e:
+        execution_time_ms = (time.time() - start_time) * 1000
+        return AgentExecutionResult(
+            success=False,
+            error=str(e),
+            iterations=1,
+            execution_time_ms=execution_time_ms,
+            metadata={
+                "agent_name": agent.name,
+                "execution_type": "tmux_streaming",
+            },
+        )
+
+    finally:
+        await worker.stop()
+
+
+def _extract_content_from_response(content: str) -> str:
+    """Extract clean content from tmux response."""
+    if not content:
+        return ""
+    try:
+        import json
+        data = json.loads(content)
+        return data.get("content", data.get("output", content))
+    except (json.JSONDecodeError, TypeError):
+        return content
+
+
+def _extract_task_notifications(content: str) -> List[str]:
+    """Extract task notifications from content."""
+    if not content:
+        return []
+    return TASK_NOTIFICATION_PATTERN.findall(content)
+
+
+def _remove_task_notifications(content: str) -> str:
+    """Remove task notification tags from content."""
+    if not content:
+        return ""
+    return TASK_NOTIFICATION_PATTERN.sub("", content)
+
+
+def _create_notification_output(notification: str) -> "ToolExecutionResult":
+    """Create a tool execution result for a notification."""
+    from ccmas.types.tool import ToolOutput
+    return ToolExecutionResult(
+        tool_call_id="",
+        tool_name="task_notification",
+        output=ToolOutput(
+            tool_call_id="",
+            content=f"<task-notification>{notification}</task-notification>",
+            is_error=False,
+            status="success",
+        ),
+        execution_time_ms=0,
+    )

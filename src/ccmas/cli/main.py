@@ -1,7 +1,7 @@
 """
-CCMAS CLI - Claude Code Multi-Agent System
+CCMAS CLI - CCMAS Multi-Agent System
 
-A Python implementation of Claude Code's MAS core functionality.
+A Python implementation of CCMAS core functionality.
 """
 
 from __future__ import annotations
@@ -19,6 +19,111 @@ from ccmas.cli.config import CLIConfig, load_config, save_config, merge_config_w
 from ccmas.cli.commands import interactive_mode, single_task, create_client
 from ccmas.memory.loader import load_ccmas_md, CCMAS_FILE_NAME
 from ccmas.memory.session import SessionManager
+from ccmas.skill.commands import (
+    install_skill,
+    uninstall_skill,
+    update_skill,
+    list_installed_skills,
+    get_skill_info,
+)
+
+
+@click.group(name="skill")
+def skill_group():
+    """Manage skills (install, list, uninstall)."""
+    pass
+
+
+@skill_group.command(name="install")
+@click.argument("source")
+@click.option("--name", "-n", default=None, help="Name for the skill")
+def skill_install(source: str, name: Optional[str]) -> None:
+    """Install a skill from a source.
+
+    SOURCE can be:
+        - GitHub repo: user/repo or user/repo/skill-name
+        - GitHub file URL: direct link to SKILL.md
+        - GitHub zipball URL
+        - Local path
+
+    Examples:
+
+        ccmas skill install user/repo
+        ccmas skill install user/repo/skill-name
+        ccmas skill install https://github.com/user/repo/blob/main/SKILL.md
+        ccmas skill install /path/to/local/skill
+    """
+    result = install_skill(source, name)
+    if result["success"]:
+        click.echo(f"[OK] {result['message']}")
+    else:
+        click.echo(f"[ERROR] {result['message']}", err=True)
+        sys.exit(1)
+
+
+@skill_group.command(name="list")
+def skill_list() -> None:
+    """List all installed skills."""
+    skills = list_installed_skills()
+    if not skills:
+        click.echo("No skills installed.")
+        click.echo("Run 'ccmas skill install <source>' to install a skill.")
+        return
+
+    click.echo(f"\nInstalled skills ({len(skills)}):\n")
+    for skill in skills:
+        desc = skill.display_description
+        if len(desc) > 60:
+            desc = desc[:57] + "..."
+        click.echo(f"  • {skill.name}")
+        if desc:
+            click.echo(f"    {desc}")
+        click.echo()
+
+
+@skill_group.command(name="info")
+@click.argument("name")
+def skill_info(name: str) -> None:
+    """Show detailed information about a skill."""
+    info = get_skill_info(name)
+    if not info:
+        click.echo(f"[ERROR] Skill '{name}' not found", err=True)
+        click.echo("Run 'ccmas skill list' to see installed skills.")
+        sys.exit(1)
+
+    click.echo(f"\nSkill: {info['name']}\n")
+    click.echo(f"Description: {info['description']}")
+    if info.get("when_to_use"):
+        click.echo(f"Use when: {info['when_to_use']}")
+    if info.get("allowed_tools"):
+        click.echo(f"Allowed tools: {', '.join(info['allowed_tools'])}")
+    if info.get("version"):
+        click.echo(f"Version: {info['version']}")
+    click.echo(f"Location: {info['file_path']}")
+
+
+@skill_group.command(name="uninstall")
+@click.argument("name")
+def skill_uninstall(name: str) -> None:
+    """Uninstall a skill by name."""
+    result = uninstall_skill(name)
+    if result["success"]:
+        click.echo(f"[OK] {result['message']}")
+    else:
+        click.echo(f"[ERROR] {result['message']}", err=True)
+        sys.exit(1)
+
+
+@skill_group.command(name="update")
+@click.argument("name")
+def skill_update(name: str) -> None:
+    """Update an installed skill."""
+    result = update_skill(name)
+    if result["success"]:
+        click.echo(f"[OK] {result['message']}")
+    else:
+        click.echo(f"[ERROR] {result['message']}", err=True)
+        sys.exit(1)
 
 
 def run_setup_wizard(force: bool = False) -> Optional[CLIConfig]:
@@ -129,7 +234,23 @@ def run_setup_wizard(force: bool = False) -> Optional[CLIConfig]:
     return new_config
 
 
-@click.command()
+@click.group(invoke_without_command=True)
+@click.pass_context
+def main(ctx: click.Context) -> None:
+    """CCMAS - Multi-Agent System CLI.
+
+    A powerful multi-agent CLI for orchestrating software engineering tasks.
+
+    Usage: ccmas [OPTIONS] [TASK] or ccmas run [OPTIONS] [TASK]
+    """
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(run)
+
+
+main.add_command(skill_group)
+
+
+@click.command(name="run")
 @click.option(
     "--workspace", "-w", default=None,
     help="Working directory for the CLI"
@@ -209,9 +330,7 @@ def run_setup_wizard(force: bool = False) -> Optional[CLIConfig]:
     help="Disable memory loading"
 )
 @click.argument("task", required=False)
-@click.pass_context
-def main(
-    ctx: click.Context,
+def run(
     workspace: Optional[str],
     model: Optional[str],
     api_base: Optional[str],
@@ -234,9 +353,7 @@ def main(
     task: Optional[str],
 ) -> None:
     """
-    CCMAS - Claude Code Multi-Agent System CLI
-
-    A powerful multi-agent CLI that 1:1 replicates Claude Code's MAS core functionality.
+    Run CCMAS in interactive mode or execute a single task.
 
     Examples:
 
@@ -389,6 +506,9 @@ def main(
             import traceback
             traceback.print_exc()
         sys.exit(1)
+
+
+main.add_command(run)
 
 
 if __name__ == "__main__":
