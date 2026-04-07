@@ -1,8 +1,7 @@
 """
-CLI main entry point.
+CCMAS CLI - Claude Code Multi-Agent System
 
-This module provides the main entry point for the CCMAS CLI,
-using Click for command-line argument parsing.
+A Python implementation of Claude Code's MAS core functionality.
 """
 
 from __future__ import annotations
@@ -20,74 +19,95 @@ from ccmas.cli.config import CLIConfig, load_config, save_config, merge_config_w
 from ccmas.cli.commands import interactive_mode, single_task, create_client
 
 
-def check_and_setup_config() -> bool:
+def run_setup_wizard(force: bool = False) -> Optional[CLIConfig]:
     """
-    Check if configuration is complete and guide user through setup if needed.
+    Run the setup wizard to configure CCMAS.
+
+    Args:
+        force: If True, always show wizard even if config exists
 
     Returns:
-        True if config is ready, False if user wants to exit
+        CLIConfig if setup completed, None if user cancelled
     """
     config_path = get_config_path()
 
-    # If config exists and has api_key, we're good
+    click.echo("\n" + "=" * 60)
+    click.echo("  CCMAS Setup Wizard")
+    click.echo("=" * 60)
+
+    # Check existing config
+    existing_config = None
     if config_path.exists():
         try:
-            config = load_config(config_path)
-            if config.api_key or config.backend in ("ollama",):
-                return True
+            existing_config = load_config(config_path)
+            if not force and existing_config.api_key:
+                click.echo(f"\nFound existing config at {config_path}")
+                click.echo(f"Model: {existing_config.model}")
+                click.echo(f"Backend: {existing_config.backend}")
+                if click.confirm("\nUse existing configuration?"):
+                    return existing_config
         except Exception:
-            pass
+            existing_config = None
 
-    # Show setup wizard
-    click.echo("\n=== CCMAS Setup Wizard ===\n")
-
-    # Check for existing config
-    if config_path.exists():
-        click.echo(f"Found existing config at {config_path}")
-        if not click.confirm("Do you want to reconfigure?"):
-            return True
+    click.echo("\nLet's configure CCMAS for first-time use.\n")
 
     # Workspace setup
     default_workspace = os.getcwd()
     workspace = click.prompt(
-        "\nWorking directory",
+        "\n1. Working directory",
         default=default_workspace,
         show_default=True,
     )
 
     # Backend selection
-    click.echo("\nSelect backend:")
-    click.echo("1. OpenAI (or OpenAI-compatible like MiniMax, DeepSeek)")
-    click.echo("2. Ollama (local model)")
-    click.echo("3. vLLM (local model)")
+    click.echo("\n2. Select backend:")
+    click.echo("   [1] OpenAI (or OpenAI-compatible like MiniMax, DeepSeek)")
+    click.echo("   [2] Ollama (local model)")
+    click.echo("   [3] vLLM (local model)")
 
-    backend_choice = click.prompt("Choice", default="1")
+    backend_choice = click.prompt("\n   Enter choice", default="1")
 
     if backend_choice == "1":
         backend = "openai"
         api_base = click.prompt(
-            "API Base URL",
+            "\n3. API Base URL",
             default="https://api.openai.com/v1",
             show_default=True,
         )
-        api_key = click.prompt("API Key", hide_input=True)
-        model = click.prompt("Model", default="gpt-4", show_default=True)
+        api_key = click.prompt(
+            "\n4. API Key",
+            hide_input=True,
+            confirmation_prompt=True,
+        )
+        model = click.prompt(
+            "\n5. Model name",
+            default="gpt-4",
+            show_default=True,
+        )
     elif backend_choice == "2":
         backend = "ollama"
         api_base = None
         api_key = None
-        model = click.prompt("Model", default="llama3", show_default=True)
+        model = click.prompt(
+            "\n3. Model name (e.g., llama3, mistral)",
+            default="llama3",
+            show_default=True,
+        )
     else:
         backend = "vllm"
         api_base = click.prompt(
-            "API Base URL",
+            "\n3. API Base URL",
             default="http://localhost:8000/v1",
             show_default=True,
         )
         api_key = None
-        model = click.prompt("Model", default="meta-llama/Llama-2-7b-chat-hf", show_default=True)
+        model = click.prompt(
+            "\n4. Model name",
+            default="meta-llama/Llama-2-7b-chat-hf",
+            show_default=True,
+        )
 
-    # Create new config
+    # Create config
     new_config = CLIConfig(
         workspace=workspace,
         backend=backend,
@@ -99,118 +119,80 @@ def check_and_setup_config() -> bool:
     # Save config
     try:
         save_config(new_config)
-        click.echo(f"\nConfiguration saved to {config_path}")
+        click.echo(f"\n[OK] Configuration saved to {config_path}")
     except Exception as e:
-        click.echo(f"Warning: Could not save config: {e}", err=True)
+        click.echo(f"\n[WARNING] Could not save config: {e}", err=True)
+        click.echo("Config will not persist after this session.")
 
-    return True
+    return new_config
 
 
 @click.command()
 @click.option(
-    "--workspace",
-    "-w",
-    default=None,
-    help="Working directory for the CLI",
+    "--workspace", "-w", default=None,
+    help="Working directory for the CLI"
 )
 @click.option(
-    "--model",
-    "-m",
-    default=None,
-    help="Model to use (e.g., gpt-4, llama2)",
+    "--model", "-m", default=None,
+    help="Model to use (e.g., gpt-4, llama3)"
 )
 @click.option(
-    "--api-base",
-    "-b",
-    default=None,
-    help="Base URL for API calls (e.g., https://api.minimax.chat/v1)",
+    "--api-base", "-b", default=None,
+    help="API base URL (e.g., https://api.minimax.chat/v1)"
 )
 @click.option(
-    "--api-key",
-    "-k",
-    default=None,
-    help="API key for authentication",
+    "--api-key", "-k", default=None,
+    help="API key for authentication"
 )
 @click.option(
-    "--ollama",
-    is_flag=True,
-    default=False,
-    help="Use Ollama backend",
+    "--ollama", is_flag=True, default=False,
+    help="Use Ollama backend"
 )
 @click.option(
-    "--vllm",
-    is_flag=True,
-    default=False,
-    help="Use vLLM backend",
+    "--vllm", is_flag=True, default=False,
+    help="Use vLLM backend"
 )
 @click.option(
-    "--temperature",
-    "-t",
-    default=None,
-    type=float,
-    help="Sampling temperature (0-2)",
+    "--temperature", "-t", default=None, type=float,
+    help="Sampling temperature (0-2)"
 )
 @click.option(
-    "--max-tokens",
-    default=None,
-    type=int,
-    help="Maximum tokens to generate",
+    "--max-tokens", default=None, type=int,
+    help="Maximum tokens to generate"
 )
 @click.option(
-    "--permission-mode",
-    "-p",
-    default=None,
-    type=click.Choice(
-        ["default", "acceptEdits", "bypassPermissions", "plan", "auto"],
-        case_sensitive=False,
-    ),
-    help="Permission mode",
+    "--permission-mode", "-p", default=None,
+    type=click.Choice(["default", "acceptEdits", "bypassPermissions", "plan", "auto"]),
+    help="Permission mode"
 )
 @click.option(
-    "--config",
-    "-c",
-    "config_file",
-    default=None,
+    "--config", "-c", "config_file", default=None,
     type=click.Path(exists=True),
-    help="Path to configuration file",
+    help="Path to configuration file"
 )
 @click.option(
-    "--save-config",
-    is_flag=True,
-    default=False,
-    help="Save current settings to config file",
+    "--setup", is_flag=True, default=False,
+    help="Run setup wizard"
 )
 @click.option(
-    "--setup",
-    is_flag=True,
-    default=False,
-    help="Run setup wizard to configure workspace and model",
+    "--reset", is_flag=True, default=False,
+    help="Reset configuration and run setup wizard"
 )
 @click.option(
-    "--no-color",
-    is_flag=True,
-    default=False,
-    help="Disable colored output",
+    "--no-color", is_flag=True, default=False,
+    help="Disable colored output"
 )
 @click.option(
-    "--verbose",
-    "-v",
-    is_flag=True,
-    default=False,
-    help="Enable verbose output",
+    "--verbose", "-v", is_flag=True, default=False,
+    help="Enable verbose output"
 )
 @click.option(
-    "--version",
-    is_flag=True,
-    default=False,
-    help="Show version and exit",
+    "--version", is_flag=True, default=False,
+    help="Show version"
 )
 @click.option(
-    "--output",
-    "-o",
-    default=None,
-    type=click.Path(),
-    help="Output file for single task mode",
+    "--output", "-o", default=None, type=click.Path(),
+    help="Output file for single task mode"
 )
 @click.argument("task", required=False)
 @click.pass_context
@@ -226,8 +208,8 @@ def main(
     max_tokens: Optional[int],
     permission_mode: Optional[str],
     config_file: Optional[str],
-    save_config: bool,
     setup: bool,
+    reset: bool,
     no_color: bool,
     verbose: bool,
     version: bool,
@@ -237,49 +219,59 @@ def main(
     """
     CCMAS - Claude Code Multi-Agent System CLI
 
-    A powerful multi-agent system command-line tool for building and managing
-    AI-powered applications.
+    A powerful multi-agent CLI that 1:1 replicates Claude Code's MAS core functionality.
 
     Examples:
 
-        # Start interactive mode
-        ccmas
-
-        # First-time setup
-        ccmas --setup
-
-        # Execute a single task
-        ccmas "Write a Python function to calculate fibonacci numbers"
-
-        # Use Ollama backend
-        ccmas --ollama --model llama3
-
-        # Use vLLM backend
-        ccmas --vllm --model meta-llama/Llama-2-7b-chat-hf
-
-        # Use custom OpenAI-compatible API (e.g., MiniMax, DeepSeek)
-        ccmas --api-base https://api.minimax.chat/v1 --api-key YOUR_API_KEY --model MiniMax-text-01
-
-        # Save output to file
-        ccmas "Explain quantum computing" -o output.txt
+        ccmas                                    # Start interactive mode
+        ccmas --setup                            # Run setup wizard
+        ccmas "Write a fibonacci function"      # Execute single task
+        ccmas --ollama --model llama3            # Use Ollama
+        ccmas --api-base <url> --api-key <key>   # Use custom OpenAI-compatible API
     """
     # Show version and exit
     if version:
         click.echo(f"CCMAS version {__version__}")
         return
 
-    # Run setup wizard if requested or no config exists
-    config_path = get_config_path()
-    if setup or not config_path.exists():
-        if not check_and_setup_config():
-            return
+    # Handle reset
+    if reset:
+        config_path = get_config_path()
+        if config_path.exists():
+            try:
+                os.remove(config_path)
+                click.echo(f"Configuration file removed: {config_path}")
+            except Exception:
+                pass
+        setup = True
 
-    # Load configuration
-    try:
-        config = load_config(config_file)
-    except Exception as e:
-        click.echo(f"Error loading configuration: {e}", err=True)
-        sys.exit(1)
+    # Determine config source
+    config_path = get_config_path() if not config_file else Path(config_file)
+    config: Optional[CLIConfig] = None
+
+    # Try to load existing config
+    if config_path.exists():
+        try:
+            config = load_config(config_path)
+        except Exception as e:
+            if verbose:
+                click.echo(f"Warning: Failed to load config: {e}", err=True)
+
+    # Run setup if needed
+    if setup or config is None or config.api_key is None:
+        if not task and not setup:
+            # No task provided and no config - offer setup
+            click.echo("\nCCMAS requires configuration to run.")
+            if click.confirm("Would you like to run the setup wizard now?"):
+                setup = True
+            else:
+                click.echo("\nRun 'ccmas --setup' to configure later.")
+                return
+
+        config = run_setup_wizard(force=True)
+        if config is None:
+            click.echo("\nSetup cancelled.")
+            return
 
     # Determine backend from flags
     backend = None
@@ -291,16 +283,22 @@ def main(
     elif vllm:
         backend = "vllm"
 
-    # Determine workspace
+    # Override config with command-line arguments
     cwd = workspace or config.workspace or os.getcwd()
 
-    # Merge command-line arguments with config
+    # Handle API key from command line
+    final_api_key = api_key or config.api_key
+    if not final_api_key and config.backend == "openai":
+        click.echo("\nError: API key is required for OpenAI backend.", err=True)
+        click.echo("Run 'ccmas --setup' to configure or use --api-key argument.")
+        sys.exit(1)
+
     config = merge_config_with_args(
         config,
         workspace=cwd,
         model=model,
         api_base=api_base,
-        api_key=api_key,
+        api_key=final_api_key,
         backend=backend,
         temperature=temperature,
         max_tokens=max_tokens,
@@ -309,16 +307,7 @@ def main(
         verbose=verbose,
     )
 
-    # Save config if requested
-    if save_config:
-        try:
-            save_config(config)
-            click.echo("Configuration saved successfully")
-        except Exception as e:
-            click.echo(f"Error saving configuration: {e}", err=True)
-            sys.exit(1)
-
-    # Change to workspace directory
+    # Change to workspace
     if config.workspace and os.path.isdir(config.workspace):
         try:
             os.chdir(config.workspace)
@@ -329,25 +318,24 @@ def main(
     try:
         client = create_client(config)
     except Exception as e:
-        click.echo(f"Error creating client: {e}", err=True)
+        click.echo(f"\nError creating client: {e}", err=True)
         if verbose:
             import traceback
             traceback.print_exc()
+        click.echo("\nHint: Run 'ccmas --setup' to reconfigure or check your API key.")
         sys.exit(1)
 
-    # Run in appropriate mode
+    # Run
     try:
         if task:
-            # Single task mode
             asyncio.run(single_task(config, client, task, output))
         else:
-            # Interactive mode
             asyncio.run(interactive_mode(config, client))
     except KeyboardInterrupt:
-        click.echo("\nInterrupted by user")
+        click.echo("\n\nInterrupted. Goodbye!")
         sys.exit(0)
     except Exception as e:
-        click.echo(f"Error: {e}", err=True)
+        click.echo(f"\nError: {e}", err=True)
         if verbose:
             import traceback
             traceback.print_exc()

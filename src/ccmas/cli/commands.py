@@ -28,9 +28,12 @@ from ccmas.types.message import (
     create_user_message,
     create_tool_message,
 )
+from ccmas.prompt.system import build_system_prompt
 from ccmas.types.tool import ToolDefinition
-from ccmas.tool.registry import get_registry, register_tool
-from ccmas.permission.mode import PermissionMode
+from ccmas.tool.base import ToolCallArgs
+from ccmas.tool.builtin import register_builtin_tools
+from ccmas.tool.registry import get_registry, register_tool as register_tool_to_registry
+from ccmas.permission.mode import PermissionMode, PermissionContext
 from ccmas.permission.checker import PermissionChecker
 
 
@@ -61,10 +64,21 @@ class CommandHandler:
         self.client = client
         self.messages: List[Message] = []
         self.permission_checker = PermissionChecker(
-            mode=PermissionMode.from_string(config.permission_mode)
+            context=PermissionContext(mode=PermissionMode.from_string(config.permission_mode))
         )
         self._running = True
-    
+        self._system_prompt = self._build_system_prompt()
+
+    def _build_system_prompt(self) -> str:
+        """Build the system prompt with workspace information."""
+        cwd = self.config.workspace or str(Path.cwd())
+        is_git = (Path(cwd) / ".git").exists()
+
+        return build_system_prompt(
+            cwd=cwd,
+            is_git=is_git,
+        )
+
     def is_running(self) -> bool:
         """Check if the handler is still running."""
         return self._running
@@ -265,42 +279,50 @@ class CommandHandler:
     async def _process_message(self, user_input: str) -> None:
         """
         Process a user message and get assistant response.
-        
+        Handles tool call loops properly.
+
         Args:
             user_input: User's input text
         """
         # Create user message
         user_message = create_user_message(user_input)
         self.messages.append(user_message)
-        
+
         # Show user message
         self.renderer.render_message(user_message)
-        
-        # Get assistant response with spinner
-        try:
-            with self.renderer.render_spinner("Thinking..."):
-                response = await self.client.complete(
-                    messages=self.messages,
-                    system=None,  # Could add system prompt here
-                )
-            
-            # Add to message history
-            self.messages.append(response)
-            
-            # Show assistant response
-            self.renderer.render_message(response, show_metadata=True)
-            
-            # Handle tool calls if present
-            if response.tool_calls:
+
+        # Process in a loop to handle tool calls
+        max_iterations = 10  # Prevent infinite loops
+        for _ in range(max_iterations):
+            # Get assistant response
+            try:
+                with self.renderer.render_spinner("Thinking..."):
+                    response = await self.client.complete(
+                        messages=self.messages,
+                        system=self._system_prompt,
+                    )
+
+                # Add to message history
+                self.messages.append(response)
+
+                # Show assistant response
+                self.renderer.render_message(response, show_metadata=True)
+
+                # Handle tool calls if present
+                if not response.tool_calls:
+                    break  # No more tool calls, we're done
+
                 await self._handle_tool_calls(response.tool_calls)
-        
-        except KeyboardInterrupt:
-            self.renderer.render_warning("Request interrupted by user")
-        except Exception as e:
-            self.renderer.render_error(f"Failed to get response: {e}")
-            if self.config.verbose:
-                import traceback
-                self.renderer.console.print(traceback.format_exc())
+
+            except KeyboardInterrupt:
+                self.renderer.render_warning("Request interrupted by user")
+                break
+            except Exception as e:
+                self.renderer.render_error(f"Failed to get response: {e}")
+                if self.config.verbose:
+                    import traceback
+                    self.renderer.console.print(traceback.format_exc())
+                break
     
     async def _handle_tool_calls(self, tool_calls: List[Any]) -> None:
         """
@@ -375,25 +397,35 @@ class CommandHandler:
     async def _execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> str:
         """
         Execute a tool and return the result.
-        
+
         Args:
             tool_name: Name of the tool to execute
             arguments: Tool arguments
-        
+
         Returns:
             Tool execution result as string
         """
+        from uuid import uuid4
+
         # Get tool from registry
         tool_registry = get_registry()
         tool = tool_registry.get(tool_name)
-        
+
         if tool is None:
             return f"Error: Tool '{tool_name}' not found"
-        
-        # Execute tool
+
+        # Execute tool with proper ToolCallArgs
         try:
-            result = await tool.execute(**arguments)
-            return json.dumps(result, ensure_ascii=False, indent=2)
+            tool_call_id = arguments.pop("_tool_call_id", str(uuid4()))
+            tool_args = ToolCallArgs(tool_call_id=tool_call_id, arguments=arguments)
+            result = await tool.execute(tool_args)
+            # Extract content from ToolExecutionResult
+            if hasattr(result, 'output'):
+                output = result.output
+                if hasattr(output, 'content'):
+                    return str(output.content)
+                return str(output)
+            return str(result)
         except Exception as e:
             return f"Error: {e}"
 
@@ -456,7 +488,7 @@ async def single_task(
 ) -> None:
     """
     Execute a single task and exit.
-    
+
     Args:
         config: CLI configuration
         client: LLM client
@@ -469,28 +501,28 @@ async def single_task(
         show_timing=config.show_timing,
         show_token_usage=config.show_token_usage,
     )
-    
+
+    # Create command handler (which properly handles tool calls)
+    handler = CommandHandler(config, renderer, client)
+
     renderer.start_session()
-    
-    # Create message
-    user_message = create_user_message(task)
-    messages = [user_message]
-    
+
     try:
-        # Get response
-        with renderer.render_spinner("Processing..."):
-            response = await client.complete(messages=messages)
-        
-        # Render response
-        renderer.render_message(response, show_metadata=True)
-        
+        # Process the task (handles tool calls properly)
+        await handler.handle_command(task)
+
         # Save to file if requested
         if output_file:
-            content = response.content if response.content else ""
+            # Get all assistant messages
+            content_parts = []
+            for msg in handler.messages:
+                if isinstance(msg, AssistantMessage) and msg.content:
+                    content_parts.append(msg.content)
+            content = "\n\n".join(content_parts)
             with open(output_file, "w", encoding="utf-8") as f:
                 f.write(content)
             renderer.render_success(f"Output saved to {output_file}")
-    
+
     except Exception as e:
         renderer.render_error(f"Failed to execute task: {e}")
         if config.verbose:
@@ -502,13 +534,16 @@ async def single_task(
 def create_client(config: CLIConfig) -> LLMClient:
     """
     Create an LLM client based on configuration.
-    
+
     Args:
         config: CLI configuration
-    
+
     Returns:
         LLM client instance
     """
+    # Register built-in tools first
+    register_builtin_tools()
+
     # Get tools from registry
     tool_registry = get_registry()
     tools = tool_registry.get_all_definitions()

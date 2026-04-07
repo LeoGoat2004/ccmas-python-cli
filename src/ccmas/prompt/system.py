@@ -33,7 +33,12 @@ def get_system_reminders_section() -> str:
 
 def get_intro_section(output_style_config: Optional[dict] = None) -> str:
     """Get introduction section of system prompt."""
-    return f"""You are an interactive agent that helps users {f"according to your \"Output Style\" below, which describes how you should respond to user queries." if output_style_config else "with software engineering tasks."} Use the instructions below and the tools available to you to assist the user.
+    output_style_text = (
+        'according to your "Output Style" below, which describes how you should respond to user queries.'
+        if output_style_config
+        else "with software engineering tasks."
+    )
+    return f"""You are an interactive agent that helps users {output_style_text} Use the instructions below and the tools available to you to assist the user.
 
 IMPORTANT: You must NEVER generate or guess URLs for the user unless you are confident that the URLs are for helping the user with programming. You may use URLs provided by the user in their messages or local files."""
 

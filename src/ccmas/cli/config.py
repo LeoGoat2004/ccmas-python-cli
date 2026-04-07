@@ -75,8 +75,8 @@ class CLIConfig(BaseModel):
     
     # Permission settings
     permission_mode: str = Field(
-        default="default",
-        description="Permission mode (default, acceptEdits, bypassPermissions)"
+        default="acceptEdits",
+        description="Permission mode (default, acceptEdits, bypassPermissions, bubble, plan, auto)"
     )
     
     # UI settings
@@ -250,12 +250,9 @@ def save_config(config: CLIConfig, config_path: Optional[Path] = None) -> None:
     # Ensure parent directory exists
     config_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Convert to dict, excluding None values and sensitive data
+    # Convert to dict, excluding None values
     config_dict = config.model_dump(exclude_none=True)
-    
-    # Don't save API key to file for security
-    config_dict.pop("api_key", None)
-    
+
     try:
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config_dict, f, indent=2, ensure_ascii=False)
@@ -297,7 +294,7 @@ def create_default_config() -> CLIConfig:
         model="gpt-4",
         temperature=0.7,
         backend="openai",
-        permission_mode="default",
+        permission_mode="acceptEdits",
         show_token_usage=True,
         show_timing=True,
         color_output=True,
