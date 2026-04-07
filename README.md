@@ -334,7 +334,7 @@ mypy src/
 | Hooks System          | Yes       | Yes   |
 | Error Recovery        | Yes       | Yes   |
 | CLAUDE.md Multi-level | Yes       | Yes   |
-| MCP Tools             | Yes       | No (  |
+| MCP Tools             | Yes       | No    |
 
 ## License
 
