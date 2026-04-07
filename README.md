@@ -16,7 +16,7 @@ Compatible with OpenAI-format models (vLLM, Ollama, MiniMax, DeepSeek, etc.).
 - **AutoCompact** - Automatic conversation compression when context is too long
 - **Token Budget** - Support +500k syntax for budget control, auto-continue execution
 - **Memory System** - MEMORY.md index system, auto-manage user/project memory
-- **Permission Bubble** - permission_mode='bubble' permission delegation
+- **Permission Bubble** - permission\_mode='bubble' permission delegation
 - **Tool System** - Bash, Read, Write, Edit, Glob, Grep, Agent
 - **Async Support** - Built on asyncio
 - **Interactive CLI** - Modern command-line interface
@@ -52,23 +52,23 @@ ccmas --api-base https://api.minimax.chat/v1 --api-key YOUR_KEY --model MiniMax-
 
 ## CLI Arguments
 
-| Argument | Description |
-|----------|-------------|
-| --setup | Run setup wizard |
-| --reset | Reset configuration |
-| --workspace, -w | Working directory |
-| --model, -m | Model name |
-| --api-base, -b | API endpoint |
-| --api-key, -k | API key |
-| --ollama | Use Ollama backend |
-| --vllm | Use vLLM backend |
-| --temperature, -t | Sampling temperature |
-| --permission-mode, -p | Permission mode |
-| --continue | Continue last session |
-| --load-session | Load historical session |
-| --no-memory | Disable Memory |
-| --verbose, -v | Verbose output |
-| --version | Show version |
+| Argument              | Description             |
+| --------------------- | ----------------------- |
+| --setup               | Run setup wizard        |
+| --reset               | Reset configuration     |
+| --workspace, -w       | Working directory       |
+| --model, -m           | Model name              |
+| --api-base, -b        | API endpoint            |
+| --api-key, -k         | API key                 |
+| --ollama              | Use Ollama backend      |
+| --vllm                | Use vLLM backend        |
+| --temperature, -t     | Sampling temperature    |
+| --permission-mode, -p | Permission mode         |
+| --continue            | Continue last session   |
+| --load-session        | Load historical session |
+| --no-memory           | Disable Memory          |
+| --verbose, -v         | Verbose output          |
+| --version             | Show version            |
 
 ## Skill Commands
 
@@ -101,6 +101,7 @@ Skills are installed to `~/.ccmas/skills/<skill-name>/SKILL.md`.
 ### AutoCompact
 
 When conversation context approaches token limit, CCMAS will:
+
 1. Call LLM to generate conversation summary
 2. Keep recent messages and key context
 3. Insert compression boundary marker
@@ -115,6 +116,7 @@ ccmas "+500k Refactor the entire user authentication module"
 ```
 
 System will:
+
 - Track token usage
 - Send continue message before budget exhausted
 - Detect diminishing returns and stop correctly
@@ -134,10 +136,12 @@ CCMAS provides persistent Memory system:
 ```
 
 **Saving Memory**: AI automatically saves important info to Memory files:
+
 1. Write to `~/.ccmas/memory/xxx.md`
 2. Update `MEMORY.md` index
 
 **Memory Types**:
+
 - `user` - User role, preferences, knowledge
 - `feedback` - User feedback and guidance
 - `project` - Project-specific info
@@ -200,14 +204,14 @@ System loads all files from shallow to deep by depth.
 
 ## Permission Modes
 
-| Mode | Description |
-|------|-------------|
-| default | Standard permission handling |
-| acceptEdits | Auto-accept edits |
-| bypassPermissions | Skip permission check |
-| bubble | Permission bubbles to parent agent |
-| plan | Plan mode |
-| auto | Auto mode |
+| Mode              | Description                        |
+| ----------------- | ---------------------------------- |
+| default           | Standard permission handling       |
+| acceptEdits       | Auto-accept edits                  |
+| bypassPermissions | Skip permission check              |
+| bubble            | Permission bubbles to parent agent |
+| plan              | Plan mode                          |
+| auto              | Auto mode                          |
 
 ## Project Structure
 
@@ -320,17 +324,17 @@ mypy src/
 
 ## Feature Comparison
 
-| Feature | Reference | CCMAS |
-|---------|-----------|-------|
-| AutoCompact | Yes | Yes |
-| Token Budget | Yes | Yes |
-| Memory System | Yes | Yes |
-| Skill System | Yes | Yes |
-| Tmux Teammate | Yes | Yes |
-| Hooks System | Yes | Yes |
-| Error Recovery | Yes | Yes |
-| CLAUDE.md Multi-level | Yes | Yes |
-| MCP Tools | Yes | No (Planned) |
+| Feature               | Reference | CCMAS |
+| --------------------- | --------- | ----- |
+| AutoCompact           | Yes       | Yes   |
+| Token Budget          | Yes       | Yes   |
+| Memory System         | Yes       | Yes   |
+| Skill System          | Yes       | Yes   |
+| Tmux Teammate         | Yes       | Yes   |
+| Hooks System          | Yes       | Yes   |
+| Error Recovery        | Yes       | Yes   |
+| CLAUDE.md Multi-level | Yes       | Yes   |
+| MCP Tools             | Yes       | No (  |
 
 ## License
 

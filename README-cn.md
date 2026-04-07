@@ -16,7 +16,7 @@ CCMAS (Multi-Agent System) Python CLI 是对多智能体系统核心逻辑的 Py
 - **AutoCompact 自动压缩** - 对话过长时自动生成摘要，释放上下文空间
 - **Token Budget 预算控制** - 支持 +500k 语法指定执行预算，自动继续执行
 - **Memory 系统** - MEMORY.md 索引系统，自动管理用户/项目记忆
-- **权限冒泡机制** - permission_mode='bubble' 权限委托
+- **权限冒泡机制** - permission\_mode='bubble' 权限委托
 - **工具系统** - Bash、Read、Write、Edit、Glob、Grep、Agent
 - **异步支持** - 基于 asyncio
 - **交互式 CLI** - 现代化命令行交互方式
@@ -52,23 +52,23 @@ ccmas --api-base https://api.minimax.chat/v1 --api-key YOUR_KEY --model MiniMax-
 
 ## CLI 参数
 
-| 参数 | 说明 |
-|------|------|
-| --setup | 运行设置向导 |
-| --reset | 重置配置 |
-| --workspace, -w | 工作目录 |
-| --model, -m | 模型名称 |
-| --api-base, -b | API 端点 |
-| --api-key, -k | API 密钥 |
-| --ollama | 使用 Ollama 后端 |
-| --vllm | 使用 vLLM 后端 |
-| --temperature, -t | 采样温度 |
-| --permission-mode, -p | 权限模式 |
-| --continue | 继续上次会话 |
-| --load-session | 加载历史会话 |
-| --no-memory | 禁用 Memory |
-| --verbose, -v | 详细输出 |
-| --version | 显示版本 |
+| 参数                    | 说明           |
+| --------------------- | ------------ |
+| --setup               | 运行设置向导       |
+| --reset               | 重置配置         |
+| --workspace, -w       | 工作目录         |
+| --model, -m           | 模型名称         |
+| --api-base, -b        | API 端点       |
+| --api-key, -k         | API 密钥       |
+| --ollama              | 使用 Ollama 后端 |
+| --vllm                | 使用 vLLM 后端   |
+| --temperature, -t     | 采样温度         |
+| --permission-mode, -p | 权限模式         |
+| --continue            | 继续上次会话       |
+| --load-session        | 加载历史会话       |
+| --no-memory           | 禁用 Memory    |
+| --verbose, -v         | 详细输出         |
+| --version             | 显示版本         |
 
 ## Skill 命令
 
@@ -101,6 +101,7 @@ Skills 安装到 `~/.ccmas/skills/<skill-name>/SKILL.md`。
 ### AutoCompact 自动压缩
 
 当对话上下文接近 token 限制时，CCMAS 会自动：
+
 1. 调用 LLM 生成对话摘要
 2. 保留最近的消息和关键上下文
 3. 插入压缩边界标记
@@ -115,6 +116,7 @@ ccmas "+500k 重构整个用户认证模块"
 ```
 
 系统会：
+
 - 追踪 token 使用量
 - 在预算耗尽前发送继续消息
 - 检测边际收益递减并正确停止
@@ -134,10 +136,12 @@ CCMAS 提供持久化的 Memory 系统：
 ```
 
 **保存记忆**：AI 会自动将重要信息保存到 Memory 文件：
+
 1. 写文件到 `~/.ccmas/memory/xxx.md`
 2. 更新 `MEMORY.md` 索引
 
 **记忆类型**：
+
 - `user` - 用户角色、偏好、知识
 - `feedback` - 用户反馈和指导
 - `project` - 项目特定信息
@@ -200,14 +204,14 @@ project/
 
 ## 权限模式
 
-| 模式 | 说明 |
-|------|------|
-| default | 标准权限处理 |
-| acceptEdits | 自动接受编辑 |
-| bypassPermissions | 跳过权限检查 |
-| bubble | 权限冒泡到父代理 |
-| plan | 规划模式 |
-| auto | 自动模式 |
+| 模式                | 说明       |
+| ----------------- | -------- |
+| default           | 标准权限处理   |
+| acceptEdits       | 自动接受编辑   |
+| bypassPermissions | 跳过权限检查   |
+| bubble            | 权限冒泡到父代理 |
+| plan              | 规划模式     |
+| auto              | 自动模式     |
 
 ## 项目结构
 
@@ -320,17 +324,17 @@ mypy src/
 
 ## 功能对比
 
-| 功能 | 参考实现 | CCMAS |
-|------|---------|-------|
-| AutoCompact | Yes | Yes |
-| Token Budget | Yes | Yes |
-| Memory 系统 | Yes | Yes |
-| Skill 系统 | Yes | Yes |
-| Tmux Teammate | Yes | Yes |
-| Hooks 系统 | Yes | Yes |
-| 错误恢复 | Yes | Yes |
-| CLAUDE.md 多级 | Yes | Yes |
-| MCP 工具 | Yes | No (计划中) |
+| 功能            | 参考实现 | CCMAS |
+| ------------- | ---- | ----- |
+| AutoCompact   | Yes  | Yes   |
+| Token Budget  | Yes  | Yes   |
+| Memory 系统     | Yes  | Yes   |
+| Skill 系统      | Yes  | Yes   |
+| Tmux Teammate | Yes  | Yes   |
+| Hooks 系统      | Yes  | Yes   |
+| 错误恢复          | Yes  | Yes   |
+| CLAUDE.md 多级  | Yes  | Yes   |
+| MCP 工具        | Yes  | No    |
 
 ## 许可证
 
