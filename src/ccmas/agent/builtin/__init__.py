@@ -24,6 +24,17 @@ from ccmas.agent.builtin.general_purpose import (
     create_test_runner_agent_config,
 )
 
+from ccmas.agent.builtin.plan_agent import (
+    PLAN_AGENT,
+    create_plan_agent_config,
+    get_plan_system_prompt,
+)
+from ccmas.agent.builtin.verification_agent import (
+    VERIFICATION_AGENT,
+    create_verification_agent_config,
+    get_verification_system_prompt,
+)
+
 # List of all built-in agents
 BUILTIN_AGENTS = [
     GENERAL_PURPOSE_AGENT,
@@ -31,6 +42,8 @@ BUILTIN_AGENTS = [
     CODE_REVIEW_AGENT,
     EXPLORER_AGENT,
     TEST_RUNNER_AGENT,
+    PLAN_AGENT,
+    VERIFICATION_AGENT,
 ]
 
 # Map of agent names to definitions
@@ -58,6 +71,14 @@ __all__ = [
     "create_explorer_agent_config",
     "TEST_RUNNER_AGENT",
     "create_test_runner_agent_config",
+    # Plan Agent
+    "PLAN_AGENT",
+    "create_plan_agent_config",
+    "get_plan_system_prompt",
+    # Verification Agent
+    "VERIFICATION_AGENT",
+    "create_verification_agent_config",
+    "get_verification_system_prompt",
     # Collections
     "BUILTIN_AGENTS",
     "BUILTIN_AGENT_MAP",

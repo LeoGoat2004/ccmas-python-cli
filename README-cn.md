@@ -2,6 +2,25 @@
 
 多智能体系统 Python CLI - 学习参考项目。
 
+## 项目状态：持续开发中
+
+本项目是对多智能体系统核心逻辑的 **Python 实现**，用于**学习和参考目的**。项目**仍在积极开发中**，暂未达到生产就绪状态。
+
+**本项目参考了 Claude Code 源码，复刻了其多智能体系统的核心机制。**
+
+### 开发状态
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| 核心 Agent 循环 | 可用 | 主要交互流程 |
+| Skill 系统 | 可用 | 安装和使用 skills |
+| Memory 系统 | 可用 | 持久化记忆 |
+| 内置 Agent | 可用 | General purpose、Plan、Verification 等 |
+| Tmux Teammate | 开发中 | 真正的并行 Agent |
+| AutoCompact | 可用 | 对话压缩 |
+| Token Budget | 可用 | +500k 语法 |
+| MCP 工具 | 未实现 | 非当前优先级 |
+
 ## 项目概述
 
 CCMAS (Multi-Agent System) Python CLI 是对多智能体系统核心逻辑的 Python 实现。

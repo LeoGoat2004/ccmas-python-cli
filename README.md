@@ -2,6 +2,25 @@
 
 Multi-Agent System Python CLI - Learning reference project.
 
+## Project Status: Active Development
+
+This project is a **Python implementation** of multi-agent system core logic, created for **learning and reference purposes**. It is **under active development** and not yet production-ready.
+
+**This project references Claude Code source code and replicates its multi-agent system core functionality.**
+
+### Development Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Core Agent Loop | Working | Main interaction flow |
+| Skill System | Working | Install/use skills |
+| Memory System | Working | Persistent memory |
+| Built-in Agents | Working | General purpose, Plan, Verification, etc. |
+| Tmux Teammate | In Progress | True parallel agents |
+| AutoCompact | Working | Conversation compression |
+| Token Budget | Working | +500k syntax |
+| MCP Tools | Not Implemented | Not a current priority |
+
 ## Project Overview
 
 CCMAS (Multi-Agent System) Python CLI is a Python implementation of multi-agent system core logic.
